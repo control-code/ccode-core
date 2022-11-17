@@ -1,15 +1,15 @@
-﻿using System.Reflection;
-using System.Collections.Immutable;
+﻿using System.Collections.Immutable;
+using System.Collections.Concurrent;
 using Ccode.Domain;
 using Ccode.Adapters.Repository;
 
 namespace Ccode.AdaptersImpl.Repository.InMemory
 {
- 	public class MemRepository<T, TState> : IRepository<T, TState> where T : class, IAggregateRoot<TState>
+ 	public class InMemoryRepository<T, TState> : IRepository<T, TState> where T : class, IAggregateRoot<TState>
 	{
-		private List<StateEvent> _stateEvents = new List<StateEvent>();
-		private SortedList<Guid, T> _entities = new SortedList<Guid, T>();
-		private SortedList<Guid, TState> _entityStates = new SortedList<Guid, TState>();
+		private ConcurrentQueue<StateEvent> _stateEvents = new ConcurrentQueue<StateEvent>();
+		private ConcurrentDictionary<Guid, T> _entities = new ConcurrentDictionary<Guid, T>();
+		private ConcurrentDictionary<Guid, TState> _entityStates = new ConcurrentDictionary<Guid, TState>();
 
 		public ICollection<StateEvent> StateEvents { get { return _stateEvents.ToImmutableList(); } }
 		public ICollection<TState> EntityStates { get { return _entityStates.Values.ToImmutableList(); } }
@@ -22,9 +22,9 @@ namespace Ccode.AdaptersImpl.Repository.InMemory
 			}
 
 			var e = new StateEvent(root.Id, StateEventOperation.Add, root.State);
-			_stateEvents.Add(e);
-			_entityStates.Add(root.Id, root.State);
-			_entities.Add(root.Id, root);
+			_stateEvents.Enqueue(e);
+			_entityStates[root.Id] = root.State;
+			_entities[root.Id] = root;
 			return Task.CompletedTask;
 		}
 
@@ -36,10 +36,10 @@ namespace Ccode.AdaptersImpl.Repository.InMemory
 			}
 
 			var events = root.GetStateEvents();
-			_stateEvents.AddRange(events);
 
 			foreach(var e in events)
 			{
+				_stateEvents.Enqueue(e);
 				_entityStates[e.EntityId] = (TState)e.State;
 			}
 
@@ -54,9 +54,14 @@ namespace Ccode.AdaptersImpl.Repository.InMemory
 			}
 
 			var e = new StateEvent(root.Id, StateEventOperation.Delete, root.State);
-			_stateEvents.Add(e);
-			_entityStates.Remove(root.Id);
-			_entities.Remove(root.Id);
+			_stateEvents.Enqueue(e);
+
+			TState? state;
+			_entityStates.TryRemove(root.Id, out state);
+
+			T? entity;
+			_entities.TryRemove(root.Id, out entity);
+
 			return Task.CompletedTask;
 		}
 

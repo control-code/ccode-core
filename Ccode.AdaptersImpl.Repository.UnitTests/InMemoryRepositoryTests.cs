@@ -3,7 +3,7 @@ using Ccode.Domain;
 
 namespace Ccode.AdaptersImpl.Repository.UnitTests
 {
-	public class MemRepositoryTests
+	public class InMemoryRepositoryTests
 	{
 		private record RootState(string Data);
 
@@ -23,7 +23,7 @@ namespace Ccode.AdaptersImpl.Repository.UnitTests
 		private readonly Guid _correlationId = Guid.NewGuid();
 		private readonly Context _context;
 
-		public MemRepositoryTests()
+		public InMemoryRepositoryTests()
 		{
 			_context = new Context(_initiatorId, _correlationId);
 		}
@@ -31,7 +31,7 @@ namespace Ccode.AdaptersImpl.Repository.UnitTests
 		[Fact]
 		public void AddEntity()
 		{
-			var r = new MemRepository<Root, RootState>();
+			var r = new InMemoryRepository<Root, RootState>();
 
 			var id = Guid.NewGuid();
 			var entity = new Root(id);
@@ -46,7 +46,7 @@ namespace Ccode.AdaptersImpl.Repository.UnitTests
 		[Fact]
 		public void UpdateEntity()
 		{
-			var r = new MemRepository<Root, RootState>();
+			var r = new InMemoryRepository<Root, RootState>();
 
 			var id = Guid.NewGuid();
 			var entity = new Root(id);
@@ -64,7 +64,7 @@ namespace Ccode.AdaptersImpl.Repository.UnitTests
 		[Fact]
 		public void DeleteEntity()
 		{
-			var r = new MemRepository<Root, RootState>();
+			var r = new InMemoryRepository<Root, RootState>();
 
 			var id = Guid.NewGuid();
 			var entity = new Root(id);
@@ -81,7 +81,7 @@ namespace Ccode.AdaptersImpl.Repository.UnitTests
 		[Fact]
 		public void GetEntity()
 		{
-			var r = new MemRepository<Root, RootState>();
+			var r = new InMemoryRepository<Root, RootState>();
 
 			var id = Guid.NewGuid();
 			var entityA = new Root(id);
