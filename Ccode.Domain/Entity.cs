@@ -18,6 +18,8 @@
 			}
 		}
 
+		public object StateObject => _state;
+
 		public Entity(Tracker tracker, Guid id, TState state)
 		{
 			_tracker = tracker;

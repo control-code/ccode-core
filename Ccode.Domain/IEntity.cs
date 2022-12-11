@@ -1,9 +1,7 @@
 ﻿namespace Ccode.Domain
 {
-	public interface IEntity<TState>
+	public interface IEntity<TState>: IEntityBase
 	{
-		Guid Id { get; }
-
 		TState State { get; }
 	}
 }

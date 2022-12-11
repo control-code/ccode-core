@@ -2,8 +2,7 @@
 
 namespace Ccode.Domain
 {
-	public interface IAggregateRoot<TState> : IEntity<TState>
+	public interface IAggregateRoot<TState> : IAggregateRootBase, IEntity<TState>
 	{
-		IEnumerable<StateEvent> GetStateEvents();
 	}
 }

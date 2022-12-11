@@ -5,7 +5,7 @@ using Ccode.Adapters.Repository;
 
 namespace Ccode.AdaptersImpl.Repository.InMemory
 {
- 	public class InMemoryRepository<T, TState> : IRepository<T, TState> where T : class, IAggregateRoot<TState>
+ 	public class InMemoryRepository<T, TState> : IRepository<T> where T : class, IAggregateRoot<TState>
 	{
 		private ConcurrentQueue<StateEvent> _stateEvents = new ConcurrentQueue<StateEvent>();
 		private ConcurrentDictionary<Guid, T> _entities = new ConcurrentDictionary<Guid, T>();

@@ -21,6 +21,8 @@
 			} 
 		}
 
+		public object StateObject => _state;
+
 		public AggregateRoot(Guid id, TState state)
 		{
 			Id = id;
