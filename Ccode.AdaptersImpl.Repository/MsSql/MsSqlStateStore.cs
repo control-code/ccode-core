@@ -39,20 +39,30 @@ namespace Ccode.AdaptersImpl.Repository.MsSql
 
 		public async Task<EntityData[]> GetByRoot(Guid rootId)
 		{
-			var query = $"SELECT {_selectColumnList} FROM {_tableName} WHERE [RootId] = @rootId";
+			var query = $"SELECT [Id], [RootId], [ParentId], {_selectColumnList} FROM {_tableName} WHERE [RootId] = @rootId";
 
 			using var connection = new SqlConnection(_connectionStr);
-			var states = await connection.QueryAsync<EntityData>(query, new { rootId });
+			var reader = await connection.ExecuteReaderAsync(query, new { rootId });
 
-			return states.ToArray();
+			var list = new List<EntityData>();
+			while(await reader.ReadAsync())
+			{
+				var ctor = _stateType.GetConstructors()[0];
+				var parameters = ctor.GetParameters();
+				var parr = parameters.Select(p => reader[p.Name]).ToArray();
+				var state = ctor.Invoke(parr);
+				list.Add(new EntityData(reader.GetGuid(0), reader.GetGuid(1), reader.IsDBNull(2) ? null : reader.GetGuid(2), state));
+			}
+
+			return list.ToArray();
 		}
 
 		public Task Add(Guid id, object state)
 		{
-			return Add(id, id, state);
+			return Add(id, id, null, state);
 		}
 
-		public async Task Add(Guid id, Guid rootId, object state)
+		public async Task Add(Guid id, Guid rootId, Guid? parentId, object state)
 		{
 			var cmd = $"INSERT INTO {_tableName} ({_insertColumnList}) VALUES ({_insertValueList})";
 
@@ -82,6 +92,14 @@ namespace Ccode.AdaptersImpl.Repository.MsSql
 
 			using var connection = new SqlConnection(_connectionStr);
 			await connection.ExecuteAsync(cmd, new { id });
+		}
+
+		public async Task DeleteByRoot(Guid rootId)
+		{
+			var cmd = $"DELETE FROM {_tableName} WHERE [RootId] = @rootId";
+
+			using var connection = new SqlConnection(_connectionStr);
+			await connection.ExecuteAsync(cmd, new { rootId });
 		}
 
 		private string GetSelectColumnList(Type stateType)

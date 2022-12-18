@@ -17,7 +17,7 @@
 				}
 
 				_state = value;
-				AddStateEvent(new StateEvent(Id, StateEventOperation.Update, _state));
+				AddStateEvent(new StateEvent(Id, null, StateEventOperation.Update, _state));
 			} 
 		}
 
@@ -43,7 +43,7 @@
 				throw new NullReferenceException("entity.State");
 			}
 
-			AddStateEvent(new StateEvent(entity.Id, StateEventOperation.Add, entity.State));
+			AddStateEvent(new StateEvent(entity.Id, null, StateEventOperation.Add, entity.State));
 		}
 
 		protected void DeleteEntity<TEntityState>(IEntity<TEntityState> entity)
@@ -53,7 +53,7 @@
 				throw new NullReferenceException("entity.State");
 			}
 
-			AddStateEvent(new StateEvent(entity.Id, StateEventOperation.Delete, entity.State));
+			AddStateEvent(new StateEvent(entity.Id, null, StateEventOperation.Delete, entity.State));
 		}
 	}
 }

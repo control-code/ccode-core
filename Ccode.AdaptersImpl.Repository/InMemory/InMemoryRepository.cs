@@ -21,7 +21,7 @@ namespace Ccode.AdaptersImpl.Repository.InMemory
 				throw new NullReferenceException("entity.State");
 			}
 
-			var e = new StateEvent(root.Id, StateEventOperation.Add, root.State);
+			var e = new StateEvent(root.Id, null, StateEventOperation.Add, root.State);
 			_stateEvents.Enqueue(e);
 			_entityStates[root.Id] = root.State;
 			_entities[root.Id] = root;
@@ -53,7 +53,7 @@ namespace Ccode.AdaptersImpl.Repository.InMemory
 				throw new NullReferenceException("entity.State");
 			}
 
-			var e = new StateEvent(root.Id, StateEventOperation.Delete, root.State);
+			var e = new StateEvent(root.Id, null, StateEventOperation.Delete, root.State);
 			_stateEvents.Enqueue(e);
 
 			TState? state;

@@ -12,10 +12,17 @@ namespace Ccode.AdaptersImpl.Repository.Tests
 
 		static void Main(string[] args)
 		{
-			MsSqlRepositoryAddTest();
-			MsSqlRepositoryGetTest();
-			MsSqlRepositoryUpdateTest();
-			MsSqlRepositoryDeleteTest();
+			RunTest(MsSqlRepositoryAddTest);
+			RunTest(MsSqlRepositoryGetTest);
+			RunTest(MsSqlRepositoryUpdateTest);
+			RunTest(MsSqlRepositoryDeleteTest);
+		}
+
+		static void RunTest(Action test)
+		{
+			Console.Write($"Run {test.Method.Name} - ");
+			test.Invoke();
+			Console.WriteLine("Ok");
 		}
 
 		static void MsSqlRepositoryAddTest()
@@ -24,7 +31,7 @@ namespace Ccode.AdaptersImpl.Repository.Tests
 
 			Guid id = _rootId;
 
-			var r = new TestAggregateRoot(id, new TestAggregateRootState(Random.Shared.Next(100)));
+			var r = new TestAggregateRoot(id, new TestAggregateRootState(Random.Shared.Next(100)), new EntityData[0]);
 
 			repo.Add(r, _context).Wait();
 		}
@@ -56,6 +63,7 @@ namespace Ccode.AdaptersImpl.Repository.Tests
 			}
 
 			r.SetNumber(Random.Shared.Next(100));
+			r.AddTextItem("Test item text");
 
 			repo.Update(r, _context).Wait();
 		}
