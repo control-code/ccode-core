@@ -2,7 +2,7 @@
 {
 	public class Tracker
 	{
-		protected List<StateEvent> StateEvents = new List<StateEvent>();
+		internal List<StateEvent> StateEvents => new List<StateEvent>();
 
 		internal void AddStateEvent(StateEvent stateEvent)
 		{

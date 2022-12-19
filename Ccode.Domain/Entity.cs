@@ -1,13 +1,13 @@
-﻿namespace Ccode.Domain
+﻿#pragma warning disable CS8603 // Possible null reference return.
+#pragma warning disable CS8604 // Possible null reference argument.
+
+namespace Ccode.Domain
 {
-	public class Entity<TState> : IEntity<TState>
+	public class Entity<TState> : EntityBase, IEntity<TState>
 	{
-		private Tracker _tracker;
-
 		private TState _state;
-		private Guid? _parentId;
 
-		public Guid Id { get; }
+		protected EntityBase? Parent { get; }
 
 		public TState State
 		{
@@ -15,32 +15,32 @@
 			protected set
 			{
 				_state = value;
-				_tracker.AddStateEvent(new StateEvent(Id, _parentId, StateEventOperation.Update, _state));
+				Tracker.AddStateEvent(new StateEvent(Id, Parent?.Id, StateEventOperation.Update, _state));
 			}
 		}
 
-		public object StateObject => _state;
+		public override object StateObject => _state;
 
-		public Entity(Tracker tracker, Guid id, Guid? parentId, TState state)
+		public Entity(EntityBase parent, Guid id, TState state) : base(id, parent.Tracker)
 		{
-			_tracker = tracker;
+			Parent = parent;
 			_state = state;
-			Id = id;
-			_parentId = parentId;
 		}
 
-		public Entity(Tracker tracker, Guid id, TState state) : this(tracker, id, null, state)
+		protected internal Entity(Tracker tracker, Guid id, TState state) : base(id, tracker)
 		{
+			Parent = null;
+			_state = state;
 		}
 
 		protected void AddEntity<TEntityState>(IEntity<TEntityState> entity)
 		{
-			_tracker.AddStateEvent(new StateEvent(entity.Id, _parentId, StateEventOperation.Add, entity.State));
+			Tracker.AddStateEvent(new StateEvent(entity.Id, Id, StateEventOperation.Add, entity.State));
 		}
 
 		protected void DeleteEntity<TEntityState>(IEntity<TEntityState> entity)
 		{
-			_tracker.AddStateEvent(new StateEvent(entity.Id, _parentId, StateEventOperation.Delete, entity.State));
+			Tracker.AddStateEvent(new StateEvent(entity.Id, Id, StateEventOperation.Delete, entity.State));
 		}
 	}
 }

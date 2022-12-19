@@ -4,10 +4,12 @@ namespace Ccode.AdaptersImpl.Repository.Tests
 {
 	public class TestSubentity : Entity<TestSubentityState>
 	{
-		public TestSubentity(Tracker tracker, Guid id, object state) : base(tracker, id, (TestSubentityState)state)
-		{}
+		public TestSubentity(TestAggregateRoot root, Guid id, object state) 
+			: base(root, id, (TestSubentityState)state)
+		{ }
 
-		public TestSubentity(Tracker tracker, Guid id, string text) : base(tracker, id, new TestSubentityState(text))
+		public TestSubentity(TestAggregateRoot root, Guid id, string text) 
+			: base(root, id, new TestSubentityState(text))
 		{ }
 
 		public void SetText(string newText)
