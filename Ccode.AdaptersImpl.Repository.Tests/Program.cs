@@ -1,5 +1,7 @@
 ﻿using Ccode.Domain;
-using Ccode.AdaptersImpl.Repository.MsSql;
+using Ccode.Adapters.StateStore;
+using Ccode.Adapters.Repository;
+using Ccode.AdaptersImpl.StateStore.MsSql;
 
 namespace Ccode.AdaptersImpl.Repository.Tests
 {
@@ -25,9 +27,16 @@ namespace Ccode.AdaptersImpl.Repository.Tests
 			Console.WriteLine("Ok");
 		}
 
+		static IRepository<TestAggregateRoot> CreateRepository()
+		{
+			var stateStore = new MsSqlStateStore("Server=localhost\\SQLEXPRESS;Initial Catalog=StateStoreTest;Integrated Security = true");
+			stateStore.StartAsync(CancellationToken.None).Wait();
+			return new Repository<TestAggregateRoot>(stateStore, new[] { typeof(TestSubentityState) });
+		}
+
 		static void MsSqlRepositoryAddTest()
 		{
-			var repo = new MsSqlRepository<TestAggregateRoot>("Server=localhost\\SQLEXPRESS;Initial Catalog=StateStoreTest;Integrated Security = true");
+			var repo = CreateRepository();
 
 			Guid id = _rootId;
 
@@ -38,7 +47,7 @@ namespace Ccode.AdaptersImpl.Repository.Tests
 
 		static void MsSqlRepositoryGetTest()
 		{
-			var repo = new MsSqlRepository<TestAggregateRoot>("Server=localhost\\SQLEXPRESS;Initial Catalog=StateStoreTest;Integrated Security = true");
+			var repo = CreateRepository();
 
 			Guid id = _rootId;
 
@@ -52,7 +61,7 @@ namespace Ccode.AdaptersImpl.Repository.Tests
 
 		static void MsSqlRepositoryUpdateTest()
 		{
-			var repo = new MsSqlRepository<TestAggregateRoot>("Server=localhost\\SQLEXPRESS;Initial Catalog=StateStoreTest;Integrated Security = true");
+			var repo = CreateRepository();
 
 			Guid id = _rootId;
 
@@ -70,7 +79,7 @@ namespace Ccode.AdaptersImpl.Repository.Tests
 
 		static void MsSqlRepositoryDeleteTest()
 		{
-			var repo = new MsSqlRepository<TestAggregateRoot>("Server=localhost\\SQLEXPRESS;Initial Catalog=StateStoreTest;Integrated Security = true");
+			var repo = CreateRepository();
 
 			Guid id = _rootId;
 

@@ -1,4 +1,4 @@
-﻿using Ccode.AdaptersImpl.Repository.MsSql;
+﻿using Ccode.Adapters.StateStore;
 using Ccode.Domain;
 
 namespace Ccode.AdaptersImpl.Repository.Tests

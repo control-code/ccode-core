@@ -1,0 +1,99 @@
+﻿using System.Reflection;
+using Ccode.Adapters.Repository;
+using Ccode.Adapters.StateStore;
+using Ccode.Domain;
+
+namespace Ccode.AdaptersImpl.Repository
+{
+	public class Repository<T> : IRepository<T> where T : class, IAggregateRootBase
+	{
+		private readonly Type _rootType;
+		private readonly Type _rootStateType;
+		private readonly ConstructorInfo _constructor; 
+		private readonly IStateStore _store;
+		private readonly Type[] _subentityTypes;
+
+		public Repository(IStateStore store, IEnumerable<Type> subentityTypes) 
+		{
+			_store = store;
+			_subentityTypes = subentityTypes.ToArray();
+
+			_rootType = typeof(T);
+			var stateType = _rootType.GetInterfaces().FirstOrDefault(i => i.IsGenericType && i.GetGenericTypeDefinition() == typeof(IEntity<>))?.GetGenericArguments()[0];
+
+			if (stateType == null)
+			{
+				throw new ArgumentException("Aggregate Root must implement IEntity interface");
+			}
+
+			_rootStateType = stateType;
+			_constructor = GetConstructor();
+		}
+
+		public async Task<T?> Get(Guid id)
+		{
+			var state = await _store.Get(_rootStateType, id);
+
+			if (state == null)
+			{
+				return null;
+			}
+
+			object? instance;
+			if (_subentityTypes.Length > 0)
+			{
+				var substates = new List<EntityData>();
+				foreach (var t in _subentityTypes)
+				{
+					substates.AddRange(await _store.GetByRoot(t, id));
+				}
+
+				instance = _constructor?.Invoke(new object[] { id, state, substates.ToArray() });
+			}
+			else
+			{
+				instance = _constructor?.Invoke(new object[] { id, state });
+			}
+
+			return (T?)instance;
+		}
+
+		public Task Add(T root, Context context)
+		{
+			_store.Add(root.Id, root.StateObject);
+			return _store.Apply(context);
+		}
+
+		public Task Update(T root, Context context)
+		{
+			var events = root.GetStateEvents();
+			return _store.Apply(root.Id, events, context);
+		}
+
+		public Task Delete(T root, Context context)
+		{
+			_store.DeleteWithSubentities(_rootStateType, root.Id);
+			return _store.Apply(context);
+		}
+
+		private ConstructorInfo GetConstructor()
+		{
+			// constructor with first Guid parameter implies entity id 
+
+			var ctorParamTypes = new[] { typeof(Guid), _rootStateType, typeof(EntityData[]) };
+			ConstructorInfo? ctor = _rootType.GetConstructor(ctorParamTypes);
+
+			if (ctor == null)
+			{
+				ctor = _rootType.GetConstructor(new[] { typeof(Guid), _rootStateType });
+			}
+
+			if (ctor == null)
+			{
+				throw new ArgumentException("Need a constructor with the first parameter Guid");
+			}
+
+			return ctor;
+		}
+	}
+}

@@ -1,20 +1,24 @@
 ﻿using System.Data.SqlClient;
 using System.Text;
 using Dapper;
+using Ccode.Domain;
+using Ccode.Adapters.StateStore;
+using System.Transactions;
+using System.Data;
 
-namespace Ccode.AdaptersImpl.Repository.MsSql
+namespace Ccode.AdaptersImpl.StateStore.MsSql
 {
-	public class MsSqlStateStore: IStateStore //where TState : class
+	public class MsSqlEntityStateStore
 	{
 		private readonly Type _stateType;
 		private readonly string _connectionStr;
-		private readonly string _tableName; 
+		private readonly string _tableName;
 		private readonly string _selectColumnList;
 		private readonly string _insertColumnList;
 		private readonly string _insertValueList;
 		private readonly string _updateList;
 
-		public MsSqlStateStore(string connectionStr, Type stateType)
+		public MsSqlEntityStateStore(string connectionStr, Type stateType)
 		{
 			_connectionStr = connectionStr;
 
@@ -45,7 +49,7 @@ namespace Ccode.AdaptersImpl.Repository.MsSql
 			var reader = await connection.ExecuteReaderAsync(query, new { rootId });
 
 			var list = new List<EntityData>();
-			while(await reader.ReadAsync())
+			while (await reader.ReadAsync())
 			{
 				var ctor = _stateType.GetConstructors()[0];
 				var parameters = ctor.GetParameters();
@@ -57,49 +61,54 @@ namespace Ccode.AdaptersImpl.Repository.MsSql
 			return list.ToArray();
 		}
 
-		public Task Add(Guid id, object state)
+		public Task Add(Guid id, object state, Context context, SqlConnection connection, IDbTransaction transaction)
 		{
-			return Add(id, id, null, state);
+			return Add(id, id, null, state, context, connection, transaction);
 		}
 
-		public async Task Add(Guid id, Guid rootId, Guid? parentId, object state)
+		public Task Add(Guid id, Guid rootId, object state, Context context, SqlConnection connection, IDbTransaction transaction)
+		{
+			return Add(id, rootId, rootId, state, context, connection, transaction);
+		}
+
+		public async Task Add(Guid id, Guid rootId, Guid? parentId, object state, Context context, SqlConnection connection, IDbTransaction transaction)
 		{
 			var cmd = $"INSERT INTO {_tableName} ({_insertColumnList}) VALUES ({_insertValueList})";
 
 			var parameters = new DynamicParameters(state);
 			parameters.Add("Id", id);
 			parameters.Add("RootId", rootId);
-			parameters.Add("ParentId", null);
+			parameters.Add("ParentId", parentId);
 
-			using var connection = new SqlConnection(_connectionStr);
-			await connection.ExecuteAsync(cmd, parameters);
+			//using var connection = new SqlConnection(_connectionStr);
+			await connection.ExecuteAsync(cmd, parameters, transaction);
 		}
 
-		public async Task Update(Guid id, object state)
+		public async Task Update(Guid id, object state, Context context, SqlConnection connection, IDbTransaction transaction)
 		{
 			var cmd = $"UPDATE {_tableName} SET {_updateList} WHERE [Id] = @id";
 
 			var parameters = new DynamicParameters(state);
 			parameters.Add("Id", id);
 
-			using var connection = new SqlConnection(_connectionStr);
-			await connection.ExecuteAsync(cmd, parameters);
+			//using var connection = new SqlConnection(_connectionStr);
+			await connection.ExecuteAsync(cmd, parameters, transaction);
 		}
 
-		public async Task Delete(Guid id)
+		public async Task Delete(Guid id, Context context, SqlConnection connection, IDbTransaction transaction)
 		{
 			var cmd = $"DELETE FROM {_tableName} WHERE [Id] = @id";
 
-			using var connection = new SqlConnection(_connectionStr);
-			await connection.ExecuteAsync(cmd, new { id });
+			//using var connection = new SqlConnection(_connectionStr);
+			await connection.ExecuteAsync(cmd, new { id }, transaction);
 		}
 
-		public async Task DeleteByRoot(Guid rootId)
+		public async Task DeleteByRoot(Guid rootId, Context context, SqlConnection connection, IDbTransaction transaction)
 		{
 			var cmd = $"DELETE FROM {_tableName} WHERE [RootId] = @rootId";
 
-			using var connection = new SqlConnection(_connectionStr);
-			await connection.ExecuteAsync(cmd, new { rootId });
+			//using var connection = new SqlConnection(_connectionStr);
+			await connection.ExecuteAsync(cmd, new { rootId }, transaction);
 		}
 
 		private string GetSelectColumnList(Type stateType)
