@@ -2,7 +2,6 @@
 
 namespace Ccode.Adapters.Repository
 {
-
 	public interface IRepository<T> where T : class, IAggregateRootBase
 	{
 		Task Add(T root, Context context);

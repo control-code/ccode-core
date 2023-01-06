@@ -1,9 +1,9 @@
 ﻿using Ccode.Adapters.StateStore;
-using Ccode.Domain;
+using Ccode.Domain.Entities;
 
 namespace Ccode.AdaptersImpl.Repository.Tests
 {
-	public class TestAggregateRoot : AggregateRoot<TestAggregateRootState>
+    public class TestAggregateRoot : AggregateRoot<TestAggregateRootState>
 	{
 		private List<TestSubentity> _subentities = new List<TestSubentity>();
 

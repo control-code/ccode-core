@@ -7,7 +7,7 @@ using System.Data;
 
 namespace Ccode.AdaptersImpl.StateStore.MsSql
 {
-	internal abstract class StoreStateEvent
+    internal abstract class StoreStateEvent
 	{
 		protected readonly MsSqlEntityStateStore Store;
 		protected readonly Guid Id;

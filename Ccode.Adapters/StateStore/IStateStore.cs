@@ -2,7 +2,7 @@
 
 namespace Ccode.Adapters.StateStore
 {
-	public interface IStateStore
+    public interface IStateStore
 	{
 		Task<object?> Get<TState>(Guid id);
 		Task<object?> Get(Type stateType, Guid id);

@@ -1,9 +1,10 @@
 using Ccode.AdaptersImpl.Repository.InMemory;
 using Ccode.Domain;
+using Ccode.Domain.Entities;
 
 namespace Ccode.AdaptersImpl.Repository.UnitTests
 {
-	public class InMemoryRepositoryTests
+    public class InMemoryRepositoryTests
 	{
 		private record RootState(string Data);
 

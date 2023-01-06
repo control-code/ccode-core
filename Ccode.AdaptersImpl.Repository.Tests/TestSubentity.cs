@@ -1,8 +1,8 @@
-﻿using Ccode.Domain;
+﻿using Ccode.Domain.Entities;
 
 namespace Ccode.AdaptersImpl.Repository.Tests
 {
-	public class TestSubentity : Entity<TestSubentityState>
+    public class TestSubentity : Entity<TestSubentityState>
 	{
 		public TestSubentity(TestAggregateRoot root, Guid id, object state) 
 			: base(root, id, (TestSubentityState)state)

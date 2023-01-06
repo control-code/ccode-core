@@ -1,6 +1,8 @@
+using Ccode.Domain.Entities;
+
 namespace Ccode.Domain.UnitTests
 {
-	public class AggregateRootTests
+    public class AggregateRootTests
 	{
 		public record TestState(string Text);
 
