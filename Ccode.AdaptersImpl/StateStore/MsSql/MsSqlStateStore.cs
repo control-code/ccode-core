@@ -1,9 +1,10 @@
 ﻿using System.Data.SqlClient;
+using System.Data;
 using Microsoft.Extensions.Hosting;
 using Dapper;
 using Ccode.Adapters.StateStore;
 using Ccode.Domain;
-using System.Data;
+using static System.Formats.Asn1.AsnWriter;
 
 namespace Ccode.AdaptersImpl.StateStore.MsSql
 {
@@ -118,6 +119,76 @@ namespace Ccode.AdaptersImpl.StateStore.MsSql
 			return store.GetByRoot(rootId);
 		}
 
+		public Task Add(Guid id, object state, Context context)
+		{
+			return Add(id, id, null, state, context);
+		}
+
+		public Task Add(Guid id, Guid rootId, object state, Context context)
+		{
+			return Add(id, rootId, null, state, context);
+		}
+
+		public async Task Add(Guid id, Guid rootId, Guid? parentId, object state, Context context)
+		{
+			var store = GetStoreByType(state.GetType());
+			await using var connection = new SqlConnection(_connectionString);
+			await store.Add(id, rootId, parentId, state, context, connection);
+		}
+
+		public async Task Update(Guid id, object state, Context context)
+		{
+			var store = GetStoreByType(state.GetType());
+			await using var connection = new SqlConnection(_connectionString);
+			await store.Update(id, state, context, connection);
+		}
+
+		public Task Delete<TState>(Guid id, Context context)
+		{
+			return Delete(typeof(TState), id, context);
+		}
+
+		public async Task Delete(Type stateType, Guid id, Context context)
+		{
+			var store = GetStoreByType(stateType);
+			await using var connection = new SqlConnection(_connectionString);
+			await store.Delete(id, context, connection);
+		}
+
+		public Task DeleteByRoot<TState>(Guid rootId, Context context)
+		{
+			return DeleteByRoot(typeof(TState), rootId, context);
+		}
+
+		public async Task DeleteByRoot(Type stateType, Guid rootId, Context context)
+		{
+			var store = GetStoreByType(stateType);
+			await using var connection = new SqlConnection(_connectionString);
+			await store.DeleteByRoot(rootId, context, connection);
+		}
+
+		public Task DeleteWithSubentities<TState>(Guid rootId, Context context)
+		{
+			var stateType = typeof(TState);
+			return DeleteWithSubentities(stateType, rootId, context);
+		}
+
+		public async Task DeleteWithSubentities(Type stateType, Guid rootId, Context context)
+		{
+			await using var connection = new SqlConnection(_connectionString);
+			await connection.OpenAsync();
+			await using var transaction = await connection.BeginTransactionAsync();
+
+			var substores = GetSubstoresByType(stateType);
+			foreach (var substore in substores)
+			{
+				await substore.DeleteByRoot(rootId, context, connection, transaction); // TODO: make await composition
+			}
+
+			var store = GetStoreByType(stateType);
+			await store.DeleteByRoot(rootId, context, connection,transaction);
+		}
+
 		public void Add(Guid id, object state)
 		{
 			var store = GetStoreByType(state.GetType());
@@ -201,7 +272,7 @@ namespace Ccode.AdaptersImpl.StateStore.MsSql
 		public async Task Apply(Guid rootId, IEnumerable<StateEvent> events, Context context)
 		{
 			using var connection = new SqlConnection(_connectionString);
-			connection.Open();
+			await connection.OpenAsync();
 			using var transaction = await connection.BeginTransactionAsync();
 
 			foreach (var ev in events)
