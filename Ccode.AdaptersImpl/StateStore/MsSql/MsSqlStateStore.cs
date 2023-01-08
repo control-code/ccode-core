@@ -271,9 +271,9 @@ namespace Ccode.AdaptersImpl.StateStore.MsSql
 
 		public async Task Apply(Guid rootId, IEnumerable<StateEvent> events, Context context)
 		{
-			using var connection = new SqlConnection(_connectionString);
+			await using var connection = new SqlConnection(_connectionString);
 			await connection.OpenAsync();
-			using var transaction = await connection.BeginTransactionAsync();
+			await using var transaction = await connection.BeginTransactionAsync();
 
 			foreach (var ev in events)
 			{
@@ -292,6 +292,8 @@ namespace Ccode.AdaptersImpl.StateStore.MsSql
 						break;
 				}
 			}
+			
+			await transaction.CommitAsync();
 		}
 
 		private MsSqlEntityStateStore GetStoreByType(Type stateType)
