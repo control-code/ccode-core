@@ -6,13 +6,24 @@ namespace Ccode.AdaptersImpl.StateStore.InMemory
 {
 	public class InMemoryStateStore : IStateStore
 	{
-		private class Item
+		private class StateRecord
 		{
-			
+			public StateRecord(Guid id, Guid rootId, Guid? parentId, object state)
+			{
+				Id = id;
+				RootId = rootId;
+				ParentId = parentId;
+				State = state;
+			}
+
+			public Guid Id { get; }
+			public Guid RootId { get; }
+			public Guid? ParentId { get; }
+			public object State { get; set; }
 		}
 		
-		private readonly ConcurrentDictionary<Guid, List<EntityData>> _statesByRoot = new();
-		private readonly ConcurrentDictionary<Guid, EntityData> _states = new();
+		private readonly ConcurrentDictionary<Guid, List<StateRecord>> _statesByRoot = new();
+		private readonly ConcurrentDictionary<Guid, StateRecord> _states = new();
 
 		public Task<object?> Get<TState>(Guid id)
 		{
@@ -35,7 +46,7 @@ namespace Ccode.AdaptersImpl.StateStore.InMemory
 			{
 				lock (list)
 				{
-					var array = list.ToArray();
+					var array = list.Select(r => new EntityData(r.Id, r.RootId, r.ParentId, r.State)).ToArray();
 					return Task.FromResult(array);
 				}
 			}
@@ -45,7 +56,7 @@ namespace Ccode.AdaptersImpl.StateStore.InMemory
 
 		public Task Add(Guid id, object state, Context context)
 		{
-			var item = new EntityData(id, id, null, state);
+			var item = new StateRecord(id, id, null, state);
 			if (!_states.TryAdd(id, item))
 			{
 				throw new IdAlreadyExistsException();
@@ -60,13 +71,13 @@ namespace Ccode.AdaptersImpl.StateStore.InMemory
 
 		public Task Add(Guid id, Guid rootId, Guid? parentId, object state, Context context)
 		{
-			var item = new EntityData(id, rootId, parentId, state);
+			var item = new StateRecord(id, rootId, parentId, state);
 			if (!_states.TryAdd(id, item))
 			{
 				throw new IdAlreadyExistsException();
 			}
 			
-			var list = _statesByRoot.GetOrAdd(rootId, new List<EntityData>());
+			var list = _statesByRoot.GetOrAdd(rootId, new List<StateRecord>());
 			lock (list)
 			{
 				list.Add(item);
@@ -79,7 +90,11 @@ namespace Ccode.AdaptersImpl.StateStore.InMemory
 		{
 			if (_states.TryGetValue(id, out var item))
 			{
-				
+				item.State = state;
+			}
+			else
+			{
+				throw new IdNotFoundException();
 			}
 			
 			return Task.CompletedTask;
@@ -143,7 +158,23 @@ namespace Ccode.AdaptersImpl.StateStore.InMemory
 
 		public Task Apply(Guid rootId, IEnumerable<StateEvent> events, Context context)
 		{
-			throw new NotImplementedException();
+			foreach (var ev in events)
+			{
+				switch (ev.Operation)
+				{
+					case StateEventOperation.Add:
+						Add(ev.EntityId, rootId, ev.ParentId, ev.State, context);
+						break;
+					case StateEventOperation.Update:
+						Update(ev.EntityId, ev.State, context);
+						break;
+					case StateEventOperation.Delete:
+						Delete(ev.State.GetType(), ev.EntityId, context);
+						break;
+				}
+			}
+
+			return Task.CompletedTask;
 		}
 	}
 }

@@ -4,7 +4,6 @@ using Microsoft.Extensions.Hosting;
 using Dapper;
 using Ccode.Adapters.StateStore;
 using Ccode.Domain;
-using static System.Formats.Asn1.AsnWriter;
 
 namespace Ccode.AdaptersImpl.StateStore.MsSql
 {
