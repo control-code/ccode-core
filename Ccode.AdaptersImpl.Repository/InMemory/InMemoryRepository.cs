@@ -7,12 +7,12 @@ namespace Ccode.AdaptersImpl.Repository.InMemory
 {
     public class InMemoryRepository<T, TState> : IRepository<T> where T : class, IAggregateRoot<TState>
 	{
-		private ConcurrentQueue<StateEvent> _stateEvents = new ConcurrentQueue<StateEvent>();
-		private ConcurrentDictionary<Guid, T> _entities = new ConcurrentDictionary<Guid, T>();
-		private ConcurrentDictionary<Guid, TState> _entityStates = new ConcurrentDictionary<Guid, TState>();
+		private readonly ConcurrentQueue<StateEvent> _stateEvents = new ConcurrentQueue<StateEvent>();
+		private readonly ConcurrentDictionary<Guid, T> _entities = new ConcurrentDictionary<Guid, T>();
+		private readonly ConcurrentDictionary<Guid, TState> _entityStates = new ConcurrentDictionary<Guid, TState>();
 
-		public ICollection<StateEvent> StateEvents { get { return _stateEvents.ToImmutableList(); } }
-		public ICollection<TState> EntityStates { get { return _entityStates.Values.ToImmutableList(); } }
+		public ICollection<StateEvent> StateEvents => _stateEvents.ToImmutableList();
+		public ICollection<TState> EntityStates => _entityStates.Values.ToImmutableList();
 
 		public Task Add(T root, Context context)
 		{
