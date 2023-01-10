@@ -60,8 +60,7 @@ namespace Ccode.AdaptersImpl.Repository
 
 		public Task Add(T root, Context context)
 		{
-			_store.Add(root.Id, root.StateObject);
-			return _store.Apply(context);
+			return _store.Add(root.Id, root.StateObject, context);
 		}
 
 		public Task Update(T root, Context context)
@@ -72,8 +71,7 @@ namespace Ccode.AdaptersImpl.Repository
 
 		public Task Delete(T root, Context context)
 		{
-			_store.DeleteWithSubentities(_rootStateType, root.Id);
-			return _store.Apply(context);
+			return _store.DeleteWithSubstates(_rootStateType, root.Id, context);
 		}
 
 		private ConstructorInfo GetConstructor()

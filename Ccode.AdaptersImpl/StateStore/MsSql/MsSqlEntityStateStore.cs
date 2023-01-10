@@ -71,7 +71,7 @@ namespace Ccode.AdaptersImpl.StateStore.MsSql
 			return Add(id, rootId, rootId, state, context, connection, transaction);
 		}
 
-		public async Task Add(Guid id, Guid rootId, Guid? parentId, object state, Context context, SqlConnection connection, IDbTransaction transaction)
+		public async Task Add(Guid id, Guid rootId, Guid? parentId, object state, Context context, SqlConnection connection, IDbTransaction? transaction = null)
 		{
 			var cmd = $"INSERT INTO {_tableName} ({_insertColumnList}) VALUES ({_insertValueList})";
 
@@ -84,7 +84,7 @@ namespace Ccode.AdaptersImpl.StateStore.MsSql
 			await connection.ExecuteAsync(cmd, parameters, transaction);
 		}
 
-		public async Task Update(Guid id, object state, Context context, SqlConnection connection, IDbTransaction transaction)
+		public async Task Update(Guid id, object state, Context context, SqlConnection connection, IDbTransaction? transaction = null)
 		{
 			var cmd = $"UPDATE {_tableName} SET {_updateList} WHERE [Id] = @id";
 
@@ -95,7 +95,7 @@ namespace Ccode.AdaptersImpl.StateStore.MsSql
 			await connection.ExecuteAsync(cmd, parameters, transaction);
 		}
 
-		public async Task Delete(Guid id, Context context, SqlConnection connection, IDbTransaction transaction)
+		public async Task Delete(Guid id, Context context, SqlConnection connection, IDbTransaction? transaction = null)
 		{
 			var cmd = $"DELETE FROM {_tableName} WHERE [Id] = @id";
 
@@ -103,7 +103,7 @@ namespace Ccode.AdaptersImpl.StateStore.MsSql
 			await connection.ExecuteAsync(cmd, new { id }, transaction);
 		}
 
-		public async Task DeleteByRoot(Guid rootId, Context context, SqlConnection connection, IDbTransaction transaction)
+		public async Task DeleteByRoot(Guid rootId, Context context, SqlConnection connection, IDbTransaction? transaction = null)
 		{
 			var cmd = $"DELETE FROM {_tableName} WHERE [RootId] = @rootId";
 
