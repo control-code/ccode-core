@@ -71,7 +71,7 @@ namespace Ccode.AdaptersImpl.Repository
 
 		public Task Delete(T root, Context context)
 		{
-			return _store.DeleteWithSubentities(_rootStateType, root.Id, context);
+			return _store.DeleteWithSubstates(_rootStateType, root.Id, context);
 		}
 
 		private ConstructorInfo GetConstructor()

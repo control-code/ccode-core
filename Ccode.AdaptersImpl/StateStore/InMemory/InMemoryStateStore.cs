@@ -144,15 +144,28 @@ namespace Ccode.AdaptersImpl.StateStore.InMemory
 			return Task.CompletedTask;
 		}
 
-		public Task DeleteWithSubentities<TState>(Guid rootId, Context context)
+		public Task DeleteWithSubstates<TState>(Guid rootId, Context context)
 		{
-			return DeleteWithSubentities(typeof(TState), rootId, context);
+			return DeleteWithSubstates(typeof(TState), rootId, context);
 		}
 
-		public Task DeleteWithSubentities(Type stateType, Guid rootId, Context context)
+		public Task DeleteWithSubstates(Type stateType, Guid rootId, Context context)
 		{
-			_statesByRoot.TryRemove(rootId, out _);
+			if (_statesByRoot.TryGetValue(rootId, out var list))
+			{
+				lock (list)
+				{
+					foreach (var item in list)
+					{
+						_states.Remove(item.Id, out _);
+					}
+				}
+
+				_statesByRoot.TryRemove(rootId, out _);
+			}
+
 			_states.TryRemove(rootId, out _);
+
 			return Task.CompletedTask;
 		}
 

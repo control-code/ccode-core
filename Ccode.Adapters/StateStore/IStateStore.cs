@@ -17,8 +17,8 @@ namespace Ccode.Adapters.StateStore
 		Task Delete(Type stateType, Guid id, Context context);
 		Task DeleteByRoot<TState>(Guid rootId, Context context);
 		Task DeleteByRoot(Type stateType, Guid rootId, Context context);
-		Task DeleteWithSubentities<TState>(Guid rootId, Context context);
-		Task DeleteWithSubentities(Type stateType, Guid rootId, Context context);
+		Task DeleteWithSubstates<TState>(Guid rootId, Context context);
+		Task DeleteWithSubstates(Type stateType, Guid rootId, Context context);
 
 		Task Apply(Guid rootId, IEnumerable<StateEvent> events, Context context);
 	}

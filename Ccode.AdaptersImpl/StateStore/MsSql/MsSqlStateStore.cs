@@ -166,13 +166,13 @@ namespace Ccode.AdaptersImpl.StateStore.MsSql
 			await store.DeleteByRoot(rootId, context, connection);
 		}
 
-		public Task DeleteWithSubentities<TState>(Guid rootId, Context context)
+		public Task DeleteWithSubstates<TState>(Guid rootId, Context context)
 		{
 			var stateType = typeof(TState);
-			return DeleteWithSubentities(stateType, rootId, context);
+			return DeleteWithSubstates(stateType, rootId, context);
 		}
 
-		public async Task DeleteWithSubentities(Type stateType, Guid rootId, Context context)
+		public async Task DeleteWithSubstates(Type stateType, Guid rootId, Context context)
 		{
 			await using var connection = new SqlConnection(_connectionString);
 			await connection.OpenAsync();
