@@ -23,6 +23,8 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Ccode.AdaptersImpl\Ccode.AdaptersImpl.csproj" />
+    <ProjectReference Include="..\Ccode.Adapters\Ccode.Adapters.csproj" />
+    <ProjectReference Include="..\Ccode.Domain\Ccode.Domain.csproj" />
   </ItemGroup>
 
 </Project>

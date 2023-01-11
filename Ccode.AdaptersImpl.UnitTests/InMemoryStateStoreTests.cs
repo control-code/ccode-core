@@ -1,8 +1,7 @@
 ﻿using Ccode.Domain;
 using Ccode.AdaptersImpl.StateStore.InMemory;
-using Ccode.Adapters.StateStore;
 
-namespace Ccode.Core.AdaptersImpl.UnitTests
+namespace Ccode.AdaptersImpl.UnitTests
 {
 	public class InMemoryStateStoreTests
 	{
