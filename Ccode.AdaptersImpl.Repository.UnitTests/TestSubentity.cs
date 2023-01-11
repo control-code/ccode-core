@@ -11,5 +11,10 @@ namespace Ccode.AdaptersImpl.Repository.UnitTests
 
 		public TestSubentity(EntityBase parent, Guid id, TestSubentityState state) : base(parent, id, state)
 		{ }
+
+		public void SetValue(double newValue)
+		{
+			State = State with { Value = newValue };
+		}
 	}
 }

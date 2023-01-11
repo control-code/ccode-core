@@ -1,5 +1,8 @@
 ﻿using Ccode.Domain;
 using Ccode.AdaptersImpl.StateStore.InMemory;
+using Ccode.AdaptersImpl.UnitTests;
+using Ccode.Adapters.Repository;
+
 
 #pragma warning disable CS8602 // Dereference of a possibly null reference.
 
@@ -18,7 +21,7 @@ namespace Ccode.AdaptersImpl.Repository.UnitTests
 		public RepositoryTests() 
 		{
 			_context = new Context(_initiatorId, _correlationId);
-			_repository = new Repository<TestAggregateRoot>(_store, Array.Empty<Type>());
+			_repository = new Repository<TestAggregateRoot>(_store, new[] { typeof(TestSubentityState) });
 		}
 
 		[Fact]
@@ -54,6 +57,60 @@ namespace Ccode.AdaptersImpl.Repository.UnitTests
 			var rootCopy = _repository.Get(_root.Id).Result;
 
 			Assert.Null(rootCopy);
+		}
+
+		[Fact]
+		public void AddAndGetEntityWithSubentities()
+		{
+			_root.AddSubentity(100);
+			_root.AddSubentity(200);
+			_root.AddSubentity(300);
+
+			_repository.Add(_root, _context).Wait();
+			var rootCopy = _repository.Get(_root.Id).Result;
+
+			Assert.NotNull(rootCopy);
+			Assert.Equal(_root.State, rootCopy.State);
+			Assert.Equal(3, rootCopy.SubentityCount);
+		}
+
+		[Fact]
+		public void AddAndUpdateEntityWithSubentities()
+		{
+			_repository.Add(_root, _context).Wait();
+
+			_root.AddSubentity(100);
+			_root.AddSubentity(200);
+			_root.AddSubentity(300);
+
+			_repository.Update(_root, _context).Wait();
+
+			var rootCopy = _repository.Get(_root.Id).Result;
+
+			Assert.NotNull(rootCopy);
+			Assert.Equal(_root.State, rootCopy.State);
+			Assert.Equal(3, rootCopy.SubentityCount);
+		}
+
+		[Fact]
+		public void AddAndDeleteEntityWithSubentities()
+		{
+
+			var ids = new[] 
+			{ 
+				_root.AddSubentity(100), 
+				_root.AddSubentity(200), 
+				_root.AddSubentity(300) 
+			};
+
+			_repository.Add(_root, _context).Wait();
+			_repository.Delete(_root, _context).Wait();
+			var rootCopy = _repository.Get(_root.Id).Result;
+			
+			var subentityStates = ids.Select(id => _store.Get<TestSubentityState>(id).Result);
+
+			Assert.Null(rootCopy);
+			Assert.All(subentityStates, s => Assert.Null(s));
 		}
 	}
 }

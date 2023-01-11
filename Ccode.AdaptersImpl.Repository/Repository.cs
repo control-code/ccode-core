@@ -48,7 +48,7 @@ namespace Ccode.AdaptersImpl.Repository
 					substates.AddRange(await _store.GetByRoot(t, id));
 				}
 
-				instance = _constructor?.Invoke(new object[] { id, state, substates.ToArray() });
+				instance = _constructor?.Invoke(new object[] { id, state, substates.Where(i => i.Id != id).ToArray() });
 			}
 			else
 			{
@@ -58,9 +58,13 @@ namespace Ccode.AdaptersImpl.Repository
 			return (T?)instance;
 		}
 
-		public Task Add(T root, Context context)
+		public async Task Add(T root, Context context)
 		{
-			return _store.Add(root.Id, root.StateObject, context);
+			var events = root.GetStateEvents();
+			//if (events.)
+			var addEvent = new StateEvent(root.Id, null, StateEventOperation.Add, root.StateObject);
+			//await _store.Add(root.Id, root.StateObject, context);
+			await _store.Apply(root.Id, events.Prepend(addEvent), context);
 		}
 
 		public Task Update(T root, Context context)
