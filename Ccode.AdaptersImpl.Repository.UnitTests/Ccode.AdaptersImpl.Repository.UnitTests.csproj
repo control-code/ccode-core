@@ -23,6 +23,8 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Ccode.AdaptersImpl.Repository\Ccode.AdaptersImpl.Repository.csproj" />
+    <ProjectReference Include="..\Ccode.AdaptersImpl.UnitTests\Ccode.AdaptersImpl.UnitTests.csproj" />
+    <ProjectReference Include="..\Ccode.AdaptersImpl\Ccode.AdaptersImpl.csproj" />
   </ItemGroup>
 
 </Project>
