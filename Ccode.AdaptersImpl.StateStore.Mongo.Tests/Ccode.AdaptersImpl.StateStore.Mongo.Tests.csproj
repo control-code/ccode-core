@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net6.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <OutputType>Exe</OutputType>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Ccode.AdaptersImpl.StateStore.Mongo\Ccode.AdaptersImpl.StateStore.Mongo.csproj" />
+    <ProjectReference Include="..\Ccode.AdaptersImpl.UnitTests\Ccode.AdaptersImpl.UnitTests.csproj" />
+    <ProjectReference Include="..\Ccode.Domain\Ccode.Domain.csproj" />
+  </ItemGroup>
+
+</Project>
