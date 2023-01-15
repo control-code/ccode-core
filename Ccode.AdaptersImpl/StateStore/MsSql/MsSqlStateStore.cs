@@ -1,4 +1,5 @@
-﻿using System.Data.SqlClient;
+﻿using System.Collections.Concurrent;
+using System.Data.SqlClient;
 using System.Data;
 using Microsoft.Extensions.Hosting;
 using Dapper;
@@ -84,10 +85,10 @@ namespace Ccode.AdaptersImpl.StateStore.MsSql
 	public class MsSqlStateStore : IStateStore, IHostedService
 	{
 		private readonly string _connectionString;
-		private readonly SortedList<string, MsSqlEntityStateStore> _entityTypeStores = new SortedList<string, MsSqlEntityStateStore>();
-		private readonly List<MsSqlEntityStateStore> _subentityStores = new List<MsSqlEntityStateStore>();
-		private readonly List<StoreStateEvent> _stateEvents = new List<StoreStateEvent>();
-		private readonly SortedList<string, List<Type>> _subentityTypes = new SortedList<string, List<Type>>();
+		private readonly ConcurrentDictionary<string, MsSqlEntityStateStore> _entityTypeStores = new ();
+		private readonly List<MsSqlEntityStateStore> _subentityStores = new ();
+		private readonly List<StoreStateEvent> _stateEvents = new ();
+		private readonly SortedList<string, List<Type>> _subentityTypes = new ();
 
 		public MsSqlStateStore(string connectionString)
 		{
@@ -178,7 +179,7 @@ namespace Ccode.AdaptersImpl.StateStore.MsSql
 			await connection.OpenAsync();
 			await using var transaction = await connection.BeginTransactionAsync();
 
-			var substores = GetSubstoresByType(stateType);
+			var substores = GetStoresByRootType(stateType);
 			foreach (var substore in substores)
 			{
 				await substore.DeleteByRoot(rootId, context, connection, transaction); // TODO: make await composition
@@ -244,7 +245,7 @@ namespace Ccode.AdaptersImpl.StateStore.MsSql
 
 		public void DeleteWithSubentities(Type stateType, Guid rootId)
 		{
-			var substores = GetSubstoresByType(stateType);
+			var substores = GetStoresByRootType(stateType);
 			foreach (var substore in substores)
 			{
 				_stateEvents.Add(new StoreDeleteRootStateEvent(substore, rootId));
@@ -297,17 +298,11 @@ namespace Ccode.AdaptersImpl.StateStore.MsSql
 
 		private MsSqlEntityStateStore GetStoreByType(Type stateType)
 		{
-			if (!_entityTypeStores.ContainsKey(stateType.Name))
-			{
-				var store = new MsSqlEntityStateStore(_connectionString, stateType);
-				_entityTypeStores[stateType.Name] = store;
-				return store;
-			}
-
-			return _entityTypeStores[stateType.Name];
+			return _entityTypeStores.GetValueOrDefault(stateType.Name,
+				new MsSqlEntityStateStore(_connectionString, stateType));
 		}
 
-		private IEnumerable<MsSqlEntityStateStore> GetSubstoresByType(Type stateType)
+		private IEnumerable<MsSqlEntityStateStore> GetStoresByRootType(Type stateType)
 		{
 			if (_subentityTypes.ContainsKey(stateType.Name))
 			{
@@ -315,14 +310,14 @@ namespace Ccode.AdaptersImpl.StateStore.MsSql
 				return subentities.Select(GetStoreByType);
 			}
 
-			return new MsSqlEntityStateStore[0];
+			return Array.Empty<MsSqlEntityStateStore>();
 		}
 
 		private async Task LoadSubentityTypes()
 		{
-			var query = $"SELECT [RootType], [EntityType] FROM [RootSubentityTypes]";
+			const string query = $"SELECT [RootType], [EntityType] FROM [RootSubentityTypes]";
 
-			using var connection = new SqlConnection(_connectionString);
+			await using var connection = new SqlConnection(_connectionString);
 			var typeNames = await connection.QueryAsync(query);
 
 			foreach(var item in typeNames)

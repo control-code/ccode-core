@@ -3,51 +3,76 @@ using Ccode.Domain;
 
 namespace Ccode.AdaptersImpl.StateStore.Mongo.Tests
 {
-	internal class Program
+	/*
+	"rootType": "TestRootEntityState",
+	"subentityTypes": [
+		"Ccode.AdaptersImpl.UnitTests.TestSubentityState, Ccode.AdaptersImpl.UnitTests"
+	]
+	*/
+	
+	internal static class Program
 	{
 		private static readonly Guid _rootId = Guid.NewGuid();
 		private static readonly Guid _initiatorId = Guid.NewGuid();
 		private static readonly Guid _operationId = Guid.NewGuid();
-		private static readonly Context _context = new Context(_initiatorId, _operationId);
+		private static readonly Context _context = new(_initiatorId, _operationId);
 
-		static void Main(string[] args)
+		private static readonly MongoStateStore _store = new("mongodb://localhost:27017/stateStoreTest"); 
+			
+		static void Main()
 		{
-			var store = new MongoStateStore("mongodb://localhost:27017/stateStoreTest");
-			MongoStateStoreAddTest(store);
-			MongoStateStoreUpdateTest(store);
-			MongoStateStoreGetTest(store);
-			MongoStateStoreDeleteTest(store);
+			RunTest(MongoStateStoreAddTest);
+			RunTest(MongoStateStoreUpdateTest);
+			RunTest(MongoStateStoreGetTest);
+			RunTest(MongoStateStoreGetByRootTest);
+			RunTest(MongoStateStoreDeleteTest);
 		}
 
-		static void MongoStateStoreAddTest(MongoStateStore store)
+		static void RunTest(Action test)
+		{
+			Console.Write($"Run {test.Method.Name} - ");
+			test.Invoke();
+			Console.WriteLine("Ok");
+		}
+		
+		static void MongoStateStoreAddTest()
 		{
 			var state = new TestRootEntityState(1, "Test");
 
-			store.Add(_rootId, state, _context).Wait();
+			_store.Add(_rootId, state, _context).Wait();
 		}
 
-		static void MongoStateStoreUpdateTest(MongoStateStore store)
+		static void MongoStateStoreUpdateTest()
 		{
 			var state = new TestRootEntityState(2, "Test new");
 
-			store.Update(_rootId, state, _context).Wait();
+			_store.Update(_rootId, state, _context).Wait();
 		}
 
-		static void MongoStateStoreDeleteTest(MongoStateStore store)
+		static void MongoStateStoreDeleteTest()
 		{
-			store.Delete<TestRootEntityState>(_rootId, _context).Wait();
+			_store.Delete<TestRootEntityState>(_rootId, _context).Wait();
 		}
 
-		static void MongoStateStoreGetTest(MongoStateStore store)
+		static void MongoStateStoreGetTest()
 		{
-			Guid id = _rootId;
-
-			var state = store.Get<TestRootEntityState>(id).Result;
+			var state = _store.Get<TestRootEntityState>(_rootId).Result;
 
 			if (state == null)
 			{
 				throw new Exception();
 			}
 		}
+
+		static void MongoStateStoreGetByRootTest()
+		{
+			var states = _store.GetByRoot<TestRootEntityState>(_rootId).Result;
+
+			if (states is not { Length: 1 })
+			{
+				throw new Exception();
+			}
+		}
+
 	}
 }

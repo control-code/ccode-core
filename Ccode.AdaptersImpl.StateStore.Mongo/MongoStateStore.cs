@@ -1,24 +1,15 @@
-﻿using Ccode.Adapters.StateStore;
-using Ccode.Domain;
+﻿using System.Collections.Concurrent;
 using MongoDB.Bson;
 using MongoDB.Bson.Serialization;
 using MongoDB.Bson.Serialization.Conventions;
-using MongoDB.Bson.Serialization.Serializers;
 using MongoDB.Driver;
-using System.Collections.Concurrent;
+using Ccode.Domain;
+using Ccode.Adapters.StateStore;
 
 namespace Ccode.AdaptersImpl.StateStore.Mongo
 {
 	public class MongoStateStore : IStateStore
 	{
-		/*
-			"rootType": "TestRootEntityState",
-			"subentityTypes": [
-				"Ccode.AdaptersImpl.UnitTests.TestSubentityState, Ccode.AdaptersImpl.UnitTests"
-			]
-		 */
-
-
 		private class RootSubentityTypes
 		{
 			public string RootType { get; }
@@ -47,7 +38,7 @@ namespace Ccode.AdaptersImpl.StateStore.Mongo
 				new CamelCaseElementNameConvention(),
 				new IgnoreExtraElementsConvention(true)
 			};
-			ConventionRegistry.Register("StateStore", pack, t => true);
+			ConventionRegistry.Register("StateStore", pack, _ => true);
 
 			var collection = _database.GetCollection<RootSubentityTypes>("rootSubentityTypes");
 			var docs = collection.Find(_ => true).ToEnumerable();
@@ -67,15 +58,21 @@ namespace Ccode.AdaptersImpl.StateStore.Mongo
 
 		public Task Add(Guid id, object state, Context context)
 		{
-			return Add(id, id, null, state, context);
+			return Add(null, id, id, null, state, context);
 		}
 
 		public Task Add(Guid id, Guid rootId, object state, Context context)
 		{
-			return Add(id, rootId, null, state, context);
+			return Add(null, id, rootId, null, state, context);
 		}
 
 		public Task Add(Guid id, Guid rootId, Guid? parentId, object state, Context context)
+		{
+			return Add(null, id, rootId, null, state, context);
+		}
+
+		private Task Add(IClientSessionHandle? session, Guid id, Guid rootId, Guid? parentId, object state,
+			Context context)
 		{
 			var collection = GetCollection(state.GetType());
 			var document = state.ToBsonDocument();
@@ -85,90 +82,156 @@ namespace Ccode.AdaptersImpl.StateStore.Mongo
 			{
 				document.Add("parentId", BsonValue.Create(parentId.Value));
 			}
-			return collection.InsertOneAsync(document);
+
+			return session != null ? collection.InsertOneAsync(session, document) : collection.InsertOneAsync(document);
 		}
 
 		public Task Update(Guid id, object state, Context context)
+		{
+			return Update(null, id, state, context);
+		}
+
+		private Task Update(IClientSessionHandle? session, Guid id, object state, Context context)
 		{
 			var filter = Builders<BsonDocument>.Filter.Eq("_id", id);
 
 			var collection = GetCollection(state.GetType());
 			var document = state.ToBsonDocument();
 			var updateDocument = new BsonDocument("$set", document);
-			return collection.UpdateOneAsync(filter, updateDocument);
+			return session != null
+				? collection.UpdateOneAsync(session, filter, updateDocument)
+				: collection.UpdateOneAsync(filter, updateDocument);
 		}
 
 		public Task Delete<TState>(Guid id, Context context)
 		{
-			return Delete(typeof(TState), id, context);
+			return Delete(null, typeof(TState), id, context);
 		}
 
 		public Task Delete(Type stateType, Guid id, Context context)
 		{
+			return Delete(null, stateType, id, context);
+		}
+
+		private Task Delete(IClientSessionHandle? session, Type stateType, Guid id, Context context)
+		{
 			var filter = Builders<BsonDocument>.Filter.Eq("_id", id);
 
 			var collection = GetCollection(stateType);
-			return collection.DeleteOneAsync(filter);
+			return session != null ? collection.DeleteOneAsync(session, filter) : collection.DeleteOneAsync(filter);
 		}
-
+		
 		public Task DeleteByRoot<TState>(Guid rootId, Context context)
 		{
-			throw new NotImplementedException();
+			return DeleteByRoot(typeof(TState), rootId, context);
 		}
 
 		public Task DeleteByRoot(Type stateType, Guid rootId, Context context)
 		{
-			throw new NotImplementedException();
+			var filter = Builders<BsonDocument>.Filter.Eq("rootId", rootId);
+
+			var collection = GetCollection(stateType);
+			return collection.DeleteManyAsync(filter);
 		}
 
 		public Task DeleteWithSubstates<TState>(Guid rootId, Context context)
 		{
-			throw new NotImplementedException();
+			return DeleteWithSubstates(typeof(TState), rootId, context);
 		}
 
-		public Task DeleteWithSubstates(Type stateType, Guid rootId, Context context)
+		public async Task DeleteWithSubstates(Type stateType, Guid rootId, Context context)
 		{
-			throw new NotImplementedException();
+			var filter = Builders<BsonDocument>.Filter.Eq("rootId", rootId);
+			var types = _subentityTypes[stateType.Name];
+			
+			using var session = await _client.StartSessionAsync();
+			session.StartTransaction();
+
+			foreach (var t in types)
+			{
+				var collection = GetCollection(t);
+				await collection.DeleteManyAsync(session, filter);
+			}
+
+			var rootCollection = GetCollection(stateType);
+			await rootCollection.DeleteManyAsync(session, filter);
+			
+			await session.CommitTransactionAsync();
 		}
 
-		public async Task<object?> Get<TState>(Guid id)
+		public Task<object?> Get<TState>(Guid id)
+		{
+			return Get(typeof(TState), id);
+		}
+
+		public async Task<object?> Get(Type stateType, Guid id)
 		{
 			var filter = Builders<BsonDocument>.Filter.Eq("_id", id);
 
-			var collection = GetCollection(typeof(TState));
+			var collection = GetCollection(stateType);
 			var documents = await collection.FindAsync(filter);
 			var doc = await documents.SingleOrDefaultAsync();
 
 			if (doc == null) return null;
 
-			return BsonSerializer.Deserialize(doc, typeof(TState));
-		}
-
-		public Task<object?> Get(Type stateType, Guid id)
-		{
-			throw new NotImplementedException();
+			return BsonSerializer.Deserialize(doc, stateType);
 		}
 
 		public Task<EntityData[]> GetByRoot<TState>(Guid rootId)
 		{
-			throw new NotImplementedException();
+			return GetByRoot(typeof(TState), rootId);
 		}
 
-		public Task<EntityData[]> GetByRoot(Type stateType, Guid rootId)
+		public async Task<EntityData[]> GetByRoot(Type stateType, Guid rootId)
 		{
-			throw new NotImplementedException();
+			var filter = Builders<BsonDocument>.Filter.Eq("rootId", rootId);
+
+			var collection = GetCollection(stateType);
+			var documents = await collection.FindAsync(filter);
+
+			var list = new List<EntityData>();
+			
+			while (await documents.MoveNextAsync())
+			{
+				list.AddRange(documents.Current.Select(d =>
+					new EntityData(d["_id"].AsGuid, d["rootId"].AsGuid,
+						d.TryGetValue("parentId", out var value) ? value.AsGuid : null,
+						BsonSerializer.Deserialize(d, stateType))));
+			} 
+
+			return list.ToArray();
+		}
+
+		public async Task Apply(Guid rootId, IEnumerable<StateEvent> events, Context context)
+		{
+			using var session = await _client.StartSessionAsync();
+			session.StartTransaction(); // handle all state changes in one transaction 
+
+			foreach (var ev in events)
+			{
+				switch (ev.Operation)
+				{
+					case StateEventOperation.Add:
+						await Add(session, ev.EntityId, rootId, ev.ParentId, ev.State, context);
+						break;
+					case StateEventOperation.Update:
+						await Update(session, ev.EntityId, ev.State, context);
+						break;
+					case StateEventOperation.Delete:
+						await Delete(session, ev.State.GetType(), ev.EntityId, context);
+						break;
+				}
+			}
+
+			await session.CommitTransactionAsync();
 		}
 
 		private IMongoCollection<BsonDocument> GetCollection(Type type)
 		{
-			return _collections.GetValueOrDefault(type.Name, _database.GetCollection<BsonDocument>(GetCollectionName(type)));
+			return _collections.GetValueOrDefault(type.Name,
+				_database.GetCollection<BsonDocument>(GetCollectionName(type)));
 		}
-
-		public Task Apply(Guid rootId, IEnumerable<StateEvent> events, Context context)
-		{
-			throw new NotImplementedException();
-		}
-
+		
 		private string GetCollectionName(Type type) 
 		{
 			var name = type.Name;
