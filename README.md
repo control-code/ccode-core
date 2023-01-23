@@ -8,7 +8,7 @@ Packages with base application design elements:
 
 **Domain entities** -- interfaces and base classes implementation for use in domain model.
 
-Entities **StateStore** interface and *InMemory*, *MsSql* and MongoDB implementations. Use StateStore to persist entity states in application services implemented using the transaction script pattern.
+Entities **StateStore** interface and *InMemory*, *MsSql* and *MongoDB* implementations. Use StateStore to persist entity states in application services implemented using the transaction script pattern.
 
 Generic **Repository** interface and implementation of repository pattern. Used in application services based on the domain model.
 
