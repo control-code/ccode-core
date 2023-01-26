@@ -1,13 +1,12 @@
-﻿using Ccode.Adapters.StateStore;
-using Ccode.Domain.Entities;
+﻿using Ccode.Domain.Entities;
 
 namespace Ccode.AdaptersImpl.Repository.Tests
 {
-    public class TestAggregateRoot : AggregateRoot<TestAggregateRootState>
+	public class TestAggregateRoot : AggregateRoot<TestAggregateRootState>
 	{
 		private List<TestSubentity> _subentities = new List<TestSubentity>();
 
-		public TestAggregateRoot(Guid id, TestAggregateRootState state, EntityData[] subentityStates) : base(id, state)
+		public TestAggregateRoot(Guid id, TestAggregateRootState state, StateInfo[] subentityStates) : base(id, state)
 		{
 			foreach(var sdata in subentityStates)
 			{

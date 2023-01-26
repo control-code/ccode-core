@@ -1,93 +1,20 @@
 ﻿using System.Collections.Concurrent;
 using System.Data.SqlClient;
 using System.Data;
+using System.Text;
 using Microsoft.Extensions.Hosting;
 using Dapper;
 using Ccode.Adapters.StateStore;
 using Ccode.Domain;
+using Ccode.Domain.Entities;
 
 namespace Ccode.AdaptersImpl.StateStore.MsSql
 {
-    internal abstract class StoreStateEvent
-	{
-		protected readonly MsSqlEntityStateStore Store;
-		protected readonly Guid Id;
-
-		public StoreStateEvent(MsSqlEntityStateStore store, Guid id)
-		{
-			Store = store;
-			Id = id;
-		}
-
-		public abstract Task Apply(Context context, SqlConnection connection, IDbTransaction transaction);
-	}
-
-	internal class StoreAddStateEvent: StoreStateEvent
-	{
-		private readonly Guid _rootId;
-		private readonly Guid? _parentId;
-		private readonly object _state;
-
-		public StoreAddStateEvent(MsSqlEntityStateStore store, Guid id, Guid rootId, Guid? parentId, object state) 
-			: base(store, id)
-		{
-			_rootId = rootId;
-			_parentId = parentId;
-			_state = state;
-		}
-
-		public override Task Apply(Context context, SqlConnection connection, IDbTransaction transaction)
-		{
-			return Store.Add(Id, _rootId, _parentId, _state, context, connection, transaction);
-		}
-	}
-
-	internal class StoreUpdateStateEvent : StoreStateEvent
-	{
-		private readonly object _state;
-
-		public StoreUpdateStateEvent(MsSqlEntityStateStore store, Guid id, object state)
-			: base(store, id)
-		{
-			_state = state;
-		}
-
-		public override Task Apply(Context context, SqlConnection connection, IDbTransaction transaction)
-		{
-			return Store.Update(Id, _state, context, connection, transaction);
-		}
-	}
-
-	internal class StoreDeleteStateEvent : StoreStateEvent
-	{
-		public StoreDeleteStateEvent(MsSqlEntityStateStore store, Guid id)
-			: base(store, id)
-		{ }
-
-		public override Task Apply(Context context, SqlConnection connection, IDbTransaction transaction)
-		{
-			return Store.Delete(Id, context, connection, transaction);
-		}
-	}
-
-	internal class StoreDeleteRootStateEvent : StoreStateEvent
-	{
-		public StoreDeleteRootStateEvent(MsSqlEntityStateStore store, Guid id)
-			: base(store, id)
-		{ }
-
-		public override Task Apply(Context context, SqlConnection connection, IDbTransaction transaction)
-		{
-			return Store.DeleteByRoot(Id, context, connection, transaction);
-		}
-	}
-
 	public class MsSqlStateStore : IStateStore, IHostedService
 	{
 		private readonly string _connectionString;
 		private readonly ConcurrentDictionary<string, MsSqlEntityStateStore> _entityTypeStores = new ();
 		private readonly List<MsSqlEntityStateStore> _subentityStores = new ();
-		private readonly List<StoreStateEvent> _stateEvents = new ();
 		private readonly SortedList<string, List<Type>> _subentityTypes = new ();
 
 		public MsSqlStateStore(string connectionString)
@@ -107,16 +34,44 @@ namespace Ccode.AdaptersImpl.StateStore.MsSql
 			return store.Get(id);
 		}
 
-		public Task<EntityData[]> GetByRoot<TState>(Guid rootId)
+		public Task<States?> GetByRoot<TState>(Guid rootId)
 		{
-			var store = GetStoreByType(typeof(TState));
-			return store.GetByRoot(rootId);
+			return GetByRoot(typeof(TState), rootId);
 		}
 
-		public Task<EntityData[]> GetByRoot(Type stateType, Guid rootId)
+		public async Task<States?> GetByRoot(Type stateType, Guid rootId)
 		{
+			var query = new StringBuilder();
+
 			var store = GetStoreByType(stateType);
-			return store.GetByRoot(rootId);
+			query.Append(store.GetByIdQuery);
+			query.AppendLine(";");
+
+			var substores = GetStoresByRootType(stateType);
+			foreach (var substore in substores)
+			{
+				query.Append(substore.GetByRootIdQuery);
+				query.AppendLine(";");
+			}
+
+			await using var connection = new SqlConnection(_connectionString);
+			var reader = await connection.ExecuteReaderAsync(query.ToString(), new { id = rootId, rootId });
+
+			var rootState = await store.Get(reader);
+
+			if (rootState == null)
+			{
+				return null;
+			}
+
+			var substates = new List<StateInfo>();
+			foreach (var substore in substores)
+			{
+				reader.NextResult();
+				substates.Union(await substore.GetByRoot(reader));
+			}
+
+			return new States(rootState, substates.ToArray());
 		}
 
 		public Task Add(Guid id, object state, Context context)
@@ -187,86 +142,6 @@ namespace Ccode.AdaptersImpl.StateStore.MsSql
 
 			var store = GetStoreByType(stateType);
 			await store.DeleteByRoot(rootId, context, connection,transaction);
-		}
-
-		public void Add(Guid id, object state)
-		{
-			var store = GetStoreByType(state.GetType());
-			_stateEvents.Add(new StoreAddStateEvent(store, id, id, null, state));
-		}
-
-		public void Add(Guid id, Guid rootId, object state)
-		{
-			var store = GetStoreByType(state.GetType());
-			_stateEvents.Add(new StoreAddStateEvent(store, id, rootId, rootId, state));
-		}
-
-		public void Add(Guid id, Guid rootId, Guid? parentId, object state)
-		{
-			var store = GetStoreByType(state.GetType());
-			_stateEvents.Add(new StoreAddStateEvent(store, id, rootId, parentId, state));
-		}
-
-		public void Update(Guid id, object state)
-		{
-			var store = GetStoreByType(state.GetType());
-			_stateEvents.Add(new StoreUpdateStateEvent(store, id, state));
-		}
-
-		public void Delete<TState>(Guid id)
-		{
-			var store = GetStoreByType(typeof(TState));
-			_stateEvents.Add(new StoreDeleteStateEvent(store, id));
-		}
-
-		public void Delete(Type stateType, Guid id)
-		{
-			var store = GetStoreByType(stateType);
-			_stateEvents.Add(new StoreDeleteStateEvent(store, id));
-		}
-
-		public void DeleteByRoot<TState>(Guid rootId)
-		{
-			var store = GetStoreByType(typeof(TState));
-			_stateEvents.Add(new StoreDeleteRootStateEvent(store, rootId));
-		}
-
-		public void DeleteByRoot(Type stateType, Guid rootId)
-		{
-			var store = GetStoreByType(stateType);
-			_stateEvents.Add(new StoreDeleteRootStateEvent(store, rootId));
-		}
-
-		public void DeleteWithSubentities<TState>(Guid rootId)
-		{
-			var stateType = typeof(TState);
-			DeleteWithSubentities(stateType, rootId);
-		}
-
-		public void DeleteWithSubentities(Type stateType, Guid rootId)
-		{
-			var substores = GetStoresByRootType(stateType);
-			foreach (var substore in substores)
-			{
-				_stateEvents.Add(new StoreDeleteRootStateEvent(substore, rootId));
-			}
-
-			var store = GetStoreByType(stateType);
-			_stateEvents.Add(new StoreDeleteStateEvent(store, rootId));
-		}
-
-		public async Task Apply(Context context)
-		{
-			using var connection = new SqlConnection(_connectionString);
-			connection.Open();
-			using var transaction = await connection.BeginTransactionAsync();
-			foreach (var ev in _stateEvents)
-			{
-				await ev.Apply(context, connection, transaction);
-			}
-			transaction.Commit();
-
-			_stateEvents.Clear();
 		}
 
 		public async Task Apply(Guid rootId, IEnumerable<StateEvent> events, Context context)

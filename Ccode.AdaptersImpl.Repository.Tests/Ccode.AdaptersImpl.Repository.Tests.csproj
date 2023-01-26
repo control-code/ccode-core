@@ -9,6 +9,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Ccode.AdaptersImpl.Repository\Ccode.AdaptersImpl.Repository.csproj" />
+    <ProjectReference Include="..\Ccode.AdaptersImpl.StateStore.MsSql\Ccode.AdaptersImpl.StateStore.MsSql.csproj" />
     <ProjectReference Include="..\Ccode.AdaptersImpl\Ccode.AdaptersImpl.csproj" />
     <ProjectReference Include="..\Ccode.Adapters\Ccode.Adapters.csproj" />
   </ItemGroup>

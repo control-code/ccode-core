@@ -5,6 +5,7 @@ using MongoDB.Bson.Serialization.Conventions;
 using MongoDB.Driver;
 using Ccode.Domain;
 using Ccode.Adapters.StateStore;
+using Ccode.Domain.Entities;
 
 namespace Ccode.AdaptersImpl.StateStore.Mongo
 {
@@ -177,29 +178,40 @@ namespace Ccode.AdaptersImpl.StateStore.Mongo
 			return BsonSerializer.Deserialize(doc, stateType);
 		}
 
-		public Task<EntityData[]> GetByRoot<TState>(Guid rootId)
+		public Task<States?> GetByRoot<TState>(Guid rootId)
 		{
 			return GetByRoot(typeof(TState), rootId);
 		}
 
-		public async Task<EntityData[]> GetByRoot(Type stateType, Guid rootId)
+		public async Task<States?> GetByRoot(Type stateType, Guid rootId)
 		{
-			var filter = Builders<BsonDocument>.Filter.Eq("rootId", rootId);
+			var rootState = Get(stateType, rootId);
 
-			var collection = GetCollection(stateType);
-			var documents = await collection.FindAsync(filter);
-
-			var list = new List<EntityData>();
-			
-			while (await documents.MoveNextAsync())
+			if (rootState == null)
 			{
-				list.AddRange(documents.Current.Select(d =>
-					new EntityData(d["_id"].AsGuid, d["rootId"].AsGuid,
-						d.TryGetValue("parentId", out var value) ? value.AsGuid : null,
-						BsonSerializer.Deserialize(d, stateType))));
-			} 
+				return null;
+			}
 
-			return list.ToArray();
+			var filter = Builders<BsonDocument>.Filter.Eq("rootId", rootId);
+			var substates = new List<StateInfo>();
+
+			var types = _subentityTypes[stateType.Name];
+
+			foreach (var t in types)
+			{
+				var collection = GetCollection(t);
+				var documents = await collection.FindAsync(filter);
+
+				while (await documents.MoveNextAsync())
+				{
+					substates.AddRange(documents.Current.Select(d =>
+						new StateInfo(d["_id"].AsGuid, d["rootId"].AsGuid,
+							d.TryGetValue("parentId", out var value) ? value.AsGuid : null,
+							BsonSerializer.Deserialize(d, t))));
+				}
+			}
+
+			return new States(rootState, substates.ToArray());
 		}
 
 		public async Task Apply(Guid rootId, IEnumerable<StateEvent> events, Context context)

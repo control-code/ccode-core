@@ -1,5 +1,5 @@
 ﻿using Ccode.Domain;
-using Ccode.Adapters.StateStore;
+using Ccode.Domain.Entities;
 using Ccode.Adapters.Repository;
 using Ccode.AdaptersImpl.StateStore.MsSql;
 
@@ -31,7 +31,7 @@ namespace Ccode.AdaptersImpl.Repository.Tests
 		{
 			var stateStore = new MsSqlStateStore("Server=localhost\\SQLEXPRESS;Initial Catalog=StateStoreTest;Integrated Security = true");
 			stateStore.StartAsync(CancellationToken.None).Wait();
-			return new Repository<TestAggregateRoot>(stateStore, new[] { typeof(TestSubentityState) });
+			return new Repository<TestAggregateRoot, TestAggregateRootState>(stateStore);
 		}
 
 		static void MsSqlRepositoryAddTest()
@@ -40,7 +40,7 @@ namespace Ccode.AdaptersImpl.Repository.Tests
 
 			Guid id = _rootId;
 
-			var r = new TestAggregateRoot(id, new TestAggregateRootState(Random.Shared.Next(100)), new EntityData[0]);
+			var r = new TestAggregateRoot(id, new TestAggregateRootState(Random.Shared.Next(100)), new StateInfo[0]);
 
 			repo.Add(r, _context).Wait();
 		}

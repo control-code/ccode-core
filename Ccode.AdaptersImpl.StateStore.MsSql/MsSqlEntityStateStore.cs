@@ -1,14 +1,14 @@
-﻿using System.Data.SqlClient;
-using System.Text;
+﻿using System.Text;
+using System.Data;
+using System.Data.Common;
+using System.Data.SqlClient;
 using Dapper;
 using Ccode.Domain;
-using Ccode.Adapters.StateStore;
-using System.Transactions;
-using System.Data;
+using Ccode.Domain.Entities;
 
 namespace Ccode.AdaptersImpl.StateStore.MsSql
 {
-	public class MsSqlEntityStateStore
+	internal class MsSqlEntityStateStore
 	{
 		private readonly Type _stateType;
 		private readonly string _connectionStr;
@@ -17,6 +17,9 @@ namespace Ccode.AdaptersImpl.StateStore.MsSql
 		private readonly string _insertColumnList;
 		private readonly string _insertValueList;
 		private readonly string _updateList;
+
+		public string GetByIdQuery { get; }
+		public string GetByRootIdQuery { get; }
 
 		public MsSqlEntityStateStore(string connectionStr, Type stateType)
 		{
@@ -29,33 +32,55 @@ namespace Ccode.AdaptersImpl.StateStore.MsSql
 			_insertColumnList = GetInsertColumnList(_stateType);
 			_insertValueList = GetInsertValueList(_stateType);
 			_updateList = GetUpdateList(_stateType);
+
+			GetByIdQuery = $"SELECT TOP 1 {_selectColumnList} FROM {_tableName} WHERE [Id] = @id";
+			GetByRootIdQuery = $"SELECT [Id], [RootId], [ParentId], {_selectColumnList} FROM {_tableName} WHERE [RootId] = @rootId";
 		}
 
 		public async Task<object?> Get(Guid id)
 		{
-			var query = $"SELECT {_selectColumnList} FROM {_tableName} WHERE [Id] = @id";
-
 			using var connection = new SqlConnection(_connectionStr);
-			var state = await connection.QuerySingleOrDefaultAsync(_stateType, query, new { id });
+			var state = await connection.QuerySingleOrDefaultAsync(_stateType, GetByIdQuery, new { id });
 
 			return state;
 		}
 
-		public async Task<EntityData[]> GetByRoot(Guid rootId)
+		public async Task<object?> Get(DbDataReader reader)
 		{
-			var query = $"SELECT [Id], [RootId], [ParentId], {_selectColumnList} FROM {_tableName} WHERE [RootId] = @rootId";
+			if (await reader.ReadAsync())
+			{
+				return CreateState(reader);
+			}
 
+			return null;
+		}
+
+		public Task<StateInfo[]> GetByRoot(Guid rootId)
+		{
 			using var connection = new SqlConnection(_connectionStr);
-			var reader = await connection.ExecuteReaderAsync(query, new { rootId });
 
-			var list = new List<EntityData>();
+			return GetByRoot(rootId, connection, null);
+		}
+
+		public async Task<StateInfo[]> GetByRoot(Guid rootId, SqlConnection connection, IDbTransaction? transaction)
+		{
+			var reader = await connection.ExecuteReaderAsync(GetByRootIdQuery, new { rootId }, transaction);
+
+			var list = new List<StateInfo>();
 			while (await reader.ReadAsync())
 			{
-				var ctor = _stateType.GetConstructors()[0];
-				var parameters = ctor.GetParameters();
-				var parr = parameters.Select(p => reader[p.Name]).ToArray();
-				var state = ctor.Invoke(parr);
-				list.Add(new EntityData(reader.GetGuid(0), reader.GetGuid(1), reader.IsDBNull(2) ? null : reader.GetGuid(2), state));
+				list.Add(new StateInfo(reader.GetGuid(0), reader.GetGuid(1), reader.IsDBNull(2) ? null : reader.GetGuid(2), CreateState(reader)));
+			}
+
+			return list.ToArray();
+		}
+
+		public async Task<StateInfo[]> GetByRoot(DbDataReader reader)
+		{
+			var list = new List<StateInfo>();
+			while (await reader.ReadAsync())
+			{
+				list.Add(new StateInfo(reader.GetGuid(0), reader.GetGuid(1), reader.IsDBNull(2) ? null : reader.GetGuid(2), CreateState(reader)));
 			}
 
 			return list.ToArray();
@@ -109,6 +134,15 @@ namespace Ccode.AdaptersImpl.StateStore.MsSql
 
 			//using var connection = new SqlConnection(_connectionStr);
 			await connection.ExecuteAsync(cmd, new { rootId }, transaction);
+		}
+
+		private object CreateState(DbDataReader reader)
+		{
+			var ctor = _stateType.GetConstructors()[0];
+			var parameters = ctor.GetParameters();
+			var parr = parameters.Select(p => reader[p.Name]).ToArray();
+			var state = ctor.Invoke(parr);
+			return state;
 		}
 
 		private string GetSelectColumnList(Type stateType)

@@ -1,6 +1,5 @@
 ﻿using Ccode.Domain.Entities;
 using Ccode.AdaptersImpl.UnitTests;
-using Ccode.Adapters.StateStore;
 
 namespace Ccode.AdaptersImpl.Repository.UnitTests
 {
@@ -10,7 +9,7 @@ namespace Ccode.AdaptersImpl.Repository.UnitTests
 
 		public int SubentityCount => _subentities.Count;
 
-		public TestAggregateRoot(Guid id, TestRootEntityState state, EntityData[] subentities) : base(id, state)
+		public TestAggregateRoot(Guid id, TestRootEntityState state, StateInfo[] subentities) : base(id, state)
 		{ 
 			foreach(var data in subentities.Where(d => d.ParentId == id))
 			{

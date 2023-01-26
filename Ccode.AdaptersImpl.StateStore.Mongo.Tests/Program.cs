@@ -68,7 +68,7 @@ namespace Ccode.AdaptersImpl.StateStore.Mongo.Tests
 		{
 			var states = _store.GetByRoot<TestRootEntityState>(_rootId).Result;
 
-			if (states is not { Length: 1 })
+			if (states == null || states.Substates is not { Length: 0 })
 			{
 				throw new Exception();
 			}

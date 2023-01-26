@@ -2,7 +2,7 @@
 
 namespace Ccode.Domain.Entities
 {
-	public class EntityList<T> : IList<T> where T : IEntityBase
+	public class EntityList<T, TState> : IList<T> where T : IEntity<TState>
 	{
 		private readonly List<T> _entities = new();
 		private readonly Tracker _tracker;
@@ -24,6 +24,16 @@ namespace Ccode.Domain.Entities
 		{
 			_owner = owner;
 			_tracker = owner.Tracker;
+			_entities.AddRange(entities);
+		}
+
+		public EntityList(EntityBase owner, EntityFactory<T, TState> factory, StateInfo[] subentities)
+		{
+			_owner = owner;
+			_tracker = owner.Tracker;
+
+			var entities = subentities.Where(i => i.ParentId == owner.Id).Select(i => factory.Create(i.Id, (TState)i.State, subentities));
+
 			_entities.AddRange(entities);
 		}
 

@@ -1,6 +1,7 @@
 ﻿using System.Collections.Concurrent;
-using Ccode.Adapters.StateStore;
 using Ccode.Domain;
+using Ccode.Domain.Entities;
+using Ccode.Adapters.StateStore;
 
 namespace Ccode.AdaptersImpl.StateStore.InMemory
 {
@@ -32,26 +33,37 @@ namespace Ccode.AdaptersImpl.StateStore.InMemory
 
 		public Task<object?> Get(Type stateType, Guid id)
 		{
-			return _states.ContainsKey(id) ? Task.FromResult((object?)_states[id].State) : Task.FromResult((object?)null);
+			
+			return _states.TryGetValue(id, out var stateRecord) ? Task.FromResult<object?>(stateRecord.State) : Task.FromResult<object?>(null);
 		}
 
-		public Task<EntityData[]> GetByRoot<TState>(Guid rootId)
+		public Task<States?> GetByRoot<TState>(Guid rootId)
 		{
 			return GetByRoot(typeof(TState), rootId);
 		}
 
-		public Task<EntityData[]> GetByRoot(Type stateType, Guid rootId)
+		public Task<States?> GetByRoot(Type stateType, Guid rootId)
 		{
 			if (_statesByRoot.TryGetValue(rootId, out var list))
 			{
 				lock (list)
 				{
-					var array = list.Select(r => new EntityData(r.Id, r.RootId, r.ParentId, r.State)).ToArray();
-					return Task.FromResult(array);
+					var array = list.Select(r => new StateInfo(r.Id, r.RootId, r.ParentId, r.State)).ToArray();
+					if (_states.TryGetValue(rootId, out var rootStateRecord))
+					{
+						return Task.FromResult<States?>(new States(rootStateRecord.State, array));
+					}
+				}
+			}
+			else
+			{
+				if(_states.TryGetValue(rootId, out var rootState))
+				{
+					return Task.FromResult<States?>(new States(_states[rootId].State, Array.Empty<StateInfo>()));
 				}
 			}
 			
-			return Task.FromResult(Array.Empty<EntityData>());
+			return Task.FromResult<States?>(null);
 		}
 
 		public Task Add(Guid id, object state, Context context)
@@ -71,15 +83,20 @@ namespace Ccode.AdaptersImpl.StateStore.InMemory
 
 		public Task Add(Guid id, Guid rootId, Guid? parentId, object state, Context context)
 		{
-			var item = new StateRecord(id, rootId, parentId, state);
-			if (!_states.TryAdd(id, item))
-			{
-				throw new IdAlreadyExistsException();
-			}
-			
 			var list = _statesByRoot.GetOrAdd(rootId, new List<StateRecord>());
 			lock (list)
 			{
+				var item = new StateRecord(id, rootId, parentId, state);
+				if (!_states.TryAdd(id, item))
+				{
+					throw new IdAlreadyExistsException();
+				}
+
+				if (id == rootId)
+				{
+					return Task.CompletedTask;
+				}
+
 				list.Add(item);
 			}
 			

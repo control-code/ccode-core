@@ -2,12 +2,13 @@
 
 namespace Ccode.Adapters.StateStore
 {
-    public interface IStateStore
+
+	public interface IStateStore
 	{
 		Task<object?> Get<TState>(Guid id);
 		Task<object?> Get(Type stateType, Guid id);
-		Task<EntityData[]> GetByRoot<TState>(Guid rootId);
-		Task<EntityData[]> GetByRoot(Type stateType, Guid rootId);
+		Task<States?> GetByRoot<TState>(Guid rootId);
+		Task<States?> GetByRoot(Type stateType, Guid rootId);
 
 		Task Add(Guid id, object state, Context context);
 		Task Add(Guid id, Guid rootId, object state, Context context);

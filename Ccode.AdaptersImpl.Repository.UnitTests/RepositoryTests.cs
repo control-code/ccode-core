@@ -1,8 +1,6 @@
 ﻿using Ccode.Domain;
 using Ccode.AdaptersImpl.StateStore.InMemory;
 using Ccode.AdaptersImpl.UnitTests;
-using Ccode.Adapters.Repository;
-
 
 #pragma warning disable CS8602 // Dereference of a possibly null reference.
 
@@ -14,14 +12,14 @@ namespace Ccode.AdaptersImpl.Repository.UnitTests
 		private readonly Guid _correlationId = Guid.NewGuid();
 		private readonly Context _context;
 		private readonly InMemoryStateStore _store = new InMemoryStateStore();
-		private readonly Repository<TestAggregateRoot> _repository;
+		private readonly Repository<TestAggregateRoot, TestRootEntityState> _repository;
 
 		private readonly TestAggregateRoot _root = new TestAggregateRoot(Guid.NewGuid(), 1, "Test");
 
 		public RepositoryTests() 
 		{
 			_context = new Context(_initiatorId, _correlationId);
-			_repository = new Repository<TestAggregateRoot>(_store, new[] { typeof(TestSubentityState) });
+			_repository = new Repository<TestAggregateRoot, TestRootEntityState>(_store);
 		}
 
 		[Fact]

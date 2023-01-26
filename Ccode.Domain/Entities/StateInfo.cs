@@ -1,8 +1,8 @@
-﻿namespace Ccode.Adapters.StateStore
+﻿namespace Ccode.Domain.Entities
 {
-	public class EntityData
+	public class StateInfo
 	{
-		public EntityData(Guid id, Guid rootId, Guid? parentId, object state)
+		public StateInfo(Guid id, Guid rootId, Guid? parentId, object state)
 		{
 			RootId = rootId;
 			ParentId = parentId;
