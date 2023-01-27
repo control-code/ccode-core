@@ -93,7 +93,6 @@ namespace Ccode.AdaptersImpl.Repository.UnitTests
 		[Fact]
 		public void AddAndDeleteEntityWithSubentities()
 		{
-
 			var ids = new[] 
 			{ 
 				_root.AddSubentity(100), 

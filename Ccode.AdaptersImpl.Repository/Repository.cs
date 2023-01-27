@@ -30,9 +30,15 @@ namespace Ccode.AdaptersImpl.Repository
 
 		public async Task Add(T root, Context context)
 		{
-			var events = root.GetStateEvents();
-			var addEvent = new StateEvent(root.Id, null, StateEventOperation.Add, root.StateObject);
-			await _store.Apply(root.Id, events.Prepend(addEvent), context);
+			if (root.HasEvents)
+			{
+				var events = root.GetStateEvents();
+				await _store.AddRoot(root.Id, root.State, events, context);
+			}
+			else
+			{
+				await _store.AddRoot(root.Id, root.State, context);
+			}
 		}
 
 		public Task Update(T root, Context context)
@@ -43,7 +49,7 @@ namespace Ccode.AdaptersImpl.Repository
 
 		public Task Delete(T root, Context context)
 		{
-			return _store.DeleteWithSubstates<TState>(root.Id, context);
+			return _store.DeleteRoot<TState>(root.Id, context);
 		}
 	}
 }

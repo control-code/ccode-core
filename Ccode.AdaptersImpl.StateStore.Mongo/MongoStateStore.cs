@@ -57,11 +57,6 @@ namespace Ccode.AdaptersImpl.StateStore.Mongo
 			}
 		}
 
-		public Task Add(Guid id, object state, Context context)
-		{
-			return Add(null, id, id, null, state, context);
-		}
-
 		public Task Add(Guid id, Guid rootId, object state, Context context)
 		{
 			return Add(null, id, rootId, null, state, context);
@@ -122,28 +117,25 @@ namespace Ccode.AdaptersImpl.StateStore.Mongo
 			return session != null ? collection.DeleteOneAsync(session, filter) : collection.DeleteOneAsync(filter);
 		}
 		
-		public Task DeleteByRoot<TState>(Guid rootId, Context context)
+		public Task DeleteRoot<TRootState>(Guid rootId, Context context)
 		{
-			return DeleteByRoot(typeof(TState), rootId, context);
+			return DeleteRoot(typeof(TRootState), rootId, context);
 		}
 
-		public Task DeleteByRoot(Type stateType, Guid rootId, Context context)
+		public Task AddRoot(Guid id, object state, Context context)
+		{
+			return Add(null, id, id, null, state, context);
+		}
+
+		public Task AddRoot(Guid id, object state, IEnumerable<StateEvent> events, Context context)
+		{
+			return Apply(id, events.Prepend(new StateEvent(id, null, StateEventOperation.Add, state)), context);
+		}
+
+		public async Task DeleteRoot(Type rootStateType, Guid rootId, Context context)
 		{
 			var filter = Builders<BsonDocument>.Filter.Eq("rootId", rootId);
-
-			var collection = GetCollection(stateType);
-			return collection.DeleteManyAsync(filter);
-		}
-
-		public Task DeleteWithSubstates<TState>(Guid rootId, Context context)
-		{
-			return DeleteWithSubstates(typeof(TState), rootId, context);
-		}
-
-		public async Task DeleteWithSubstates(Type stateType, Guid rootId, Context context)
-		{
-			var filter = Builders<BsonDocument>.Filter.Eq("rootId", rootId);
-			var types = _subentityTypes[stateType.Name];
+			var types = _subentityTypes[rootStateType.Name];
 			
 			using var session = await _client.StartSessionAsync();
 			session.StartTransaction();
@@ -154,7 +146,7 @@ namespace Ccode.AdaptersImpl.StateStore.Mongo
 				await collection.DeleteManyAsync(session, filter);
 			}
 
-			var rootCollection = GetCollection(stateType);
+			var rootCollection = GetCollection(rootStateType);
 			await rootCollection.DeleteManyAsync(session, filter);
 			
 			await session.CommitTransactionAsync();

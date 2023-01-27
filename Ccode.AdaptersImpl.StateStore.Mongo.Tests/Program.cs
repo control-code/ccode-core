@@ -39,7 +39,7 @@ namespace Ccode.AdaptersImpl.StateStore.Mongo.Tests
 		{
 			var state = new TestRootEntityState(1, "Test");
 
-			_store.Add(_rootId, state, _context).Wait();
+			_store.AddRoot(_rootId, state, _context).Wait();
 		}
 
 		static void MongoStateStoreUpdateTest()

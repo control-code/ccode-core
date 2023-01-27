@@ -4,6 +4,8 @@
     {
         private List<StateEvent> _stateEvents = new List<StateEvent>();
 
+        internal bool HasEvents => _stateEvents.Any();
+
         internal IEnumerable<StateEvent> GetStateEvents()
         {
             var arr = _stateEvents.ToArray();

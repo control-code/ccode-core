@@ -2,6 +2,7 @@
 using Ccode.Domain;
 using Ccode.Domain.Entities;
 using Ccode.Adapters.StateStore;
+using System.ComponentModel;
 
 namespace Ccode.AdaptersImpl.StateStore.InMemory
 {
@@ -22,9 +23,39 @@ namespace Ccode.AdaptersImpl.StateStore.InMemory
 			public Guid? ParentId { get; }
 			public object State { get; set; }
 		}
-		
-		private readonly ConcurrentDictionary<Guid, List<StateRecord>> _statesByRoot = new();
-		private readonly ConcurrentDictionary<Guid, StateRecord> _states = new();
+
+		private class RootRecord
+		{
+			public SortedList<Guid, StateRecord> Substates { get; }
+
+			public StateRecord StateRecord { get; }
+
+			public RootRecord(Guid id, object state)
+			{
+				Substates = new();
+				StateRecord = new StateRecord(id, id, null, state);
+			}
+
+			public StateRecord Add(Guid id, Guid? parentId, object state)
+			{
+				var record = new StateRecord(id, StateRecord.Id, parentId, state);
+				Substates.Add(id, record);
+				return record;
+			}
+
+			public void Delete(Guid id)
+			{
+				Substates.Remove(id);
+			}
+
+			public StateInfo[] GetStateInfos()
+			{
+				return Substates.Values.Select(r => new StateInfo(r.Id, r.RootId, r.ParentId, r.State)).ToArray();
+			}
+		}
+
+		private readonly ConcurrentDictionary<Guid, RootRecord> _roots = new();
+		private readonly ConcurrentDictionary<Guid, StateRecord> _index = new();
 
 		public Task<object?> Get<TState>(Guid id)
 		{
@@ -34,7 +65,7 @@ namespace Ccode.AdaptersImpl.StateStore.InMemory
 		public Task<object?> Get(Type stateType, Guid id)
 		{
 			
-			return _states.TryGetValue(id, out var stateRecord) ? Task.FromResult<object?>(stateRecord.State) : Task.FromResult<object?>(null);
+			return _index.TryGetValue(id, out var stateRecord) ? Task.FromResult<object?>(stateRecord.State) : Task.FromResult<object?>(null);
 		}
 
 		public Task<States?> GetByRoot<TState>(Guid rootId)
@@ -44,36 +75,15 @@ namespace Ccode.AdaptersImpl.StateStore.InMemory
 
 		public Task<States?> GetByRoot(Type stateType, Guid rootId)
 		{
-			if (_statesByRoot.TryGetValue(rootId, out var list))
+			if (_roots.TryGetValue(rootId, out var root))
 			{
-				lock (list)
+				lock (root)
 				{
-					var array = list.Select(r => new StateInfo(r.Id, r.RootId, r.ParentId, r.State)).ToArray();
-					if (_states.TryGetValue(rootId, out var rootStateRecord))
-					{
-						return Task.FromResult<States?>(new States(rootStateRecord.State, array));
-					}
-				}
-			}
-			else
-			{
-				if(_states.TryGetValue(rootId, out var rootState))
-				{
-					return Task.FromResult<States?>(new States(_states[rootId].State, Array.Empty<StateInfo>()));
+					return Task.FromResult<States?>(new States(root.StateRecord.State, root.GetStateInfos()));
 				}
 			}
 			
 			return Task.FromResult<States?>(null);
-		}
-
-		public Task Add(Guid id, object state, Context context)
-		{
-			var item = new StateRecord(id, id, null, state);
-			if (!_states.TryAdd(id, item))
-			{
-				throw new IdAlreadyExistsException();
-			}
-			return Task.CompletedTask;
 		}
 
 		public Task Add(Guid id, Guid rootId, object state, Context context)
@@ -83,38 +93,54 @@ namespace Ccode.AdaptersImpl.StateStore.InMemory
 
 		public Task Add(Guid id, Guid rootId, Guid? parentId, object state, Context context)
 		{
-			var list = _statesByRoot.GetOrAdd(rootId, new List<StateRecord>());
-			lock (list)
+			if (id == rootId)
 			{
-				var item = new StateRecord(id, rootId, parentId, state);
-				if (!_states.TryAdd(id, item))
-				{
-					throw new IdAlreadyExistsException();
-				}
-
-				if (id == rootId)
-				{
-					return Task.CompletedTask;
-				}
-
-				list.Add(item);
+				throw new ArgumentException("Substate id must not be equal root id");
 			}
-			
-			return Task.CompletedTask;
+
+			if (_roots.TryGetValue(rootId, out var root))
+			{
+				lock (root)
+				{
+					_index[id] = root.Add(id, parentId, state);					
+				}
+				return Task.CompletedTask;
+			}
+
+			throw new IdNotFoundException();
+		}
+
+		private void Add(RootRecord root, Guid id, Guid? parentId, object state, Context context)
+		{
+			if (id == root.StateRecord.Id)
+			{
+				throw new ArgumentException("Substate id must not be equal root id");
+			}
+
+			_index[id] = root.Add(id, parentId, state);
 		}
 
 		public Task Update(Guid id, object state, Context context)
 		{
-			if (_states.TryGetValue(id, out var item))
+			if (_index.TryGetValue(id, out var item))
 			{
 				item.State = state;
+				return Task.CompletedTask;
+			}
+
+			throw new IdNotFoundException();
+		}
+
+		private void Update(RootRecord root, Guid id, object state, Context context)
+		{
+			if (id == root.StateRecord.Id)
+			{
+				root.StateRecord.State = state;
 			}
 			else
 			{
-				throw new IdNotFoundException();
+				root.Substates[id].State = state;
 			}
-			
-			return Task.CompletedTask;
 		}
 
 		public Task Delete<TState>(Guid id, Context context)
@@ -124,13 +150,18 @@ namespace Ccode.AdaptersImpl.StateStore.InMemory
 
 		public Task Delete(Type stateType, Guid id, Context context)
 		{
-			if (_states.TryRemove(id, out var item))
+			if (_index.TryRemove(id, out var record))
 			{
-				if (_statesByRoot.TryGetValue(item.RootId, out var list))
+				if (record.Id == record.RootId)
 				{
-					lock (list)
+					throw new RootCannotBeDeleted();
+				}
+
+				if (_roots.TryGetValue(record.RootId, out var root))
+				{
+					lock (root)
 					{
-						list.Remove(item);
+						root.Delete(id);
 					}
 				}
 			}
@@ -138,73 +169,108 @@ namespace Ccode.AdaptersImpl.StateStore.InMemory
 			return Task.CompletedTask;
 		}
 
-		public Task DeleteByRoot<TState>(Guid rootId, Context context)
+		private void Delete(RootRecord root, Guid id, Context context)
 		{
-			return DeleteByRoot(typeof(TState), rootId, context);
+			if (id == root.StateRecord.Id)
+			{
+				throw new RootCannotBeDeleted();
+			}
+
+			root.Delete(id);
+			_index.TryRemove(id, out _);
 		}
 
-		public Task DeleteByRoot(Type stateType, Guid rootId, Context context)
+		public Task AddRoot(Guid id, object state, Context context)
 		{
-			if (_statesByRoot.TryGetValue(rootId, out var list))
+			var root = new RootRecord(id, state);
+
+			if (!_roots.TryAdd(id, root))
 			{
-				lock (list)
-				{
-					var items = list.Where(i => i.State.GetType() == stateType);
-					foreach (var item in items)
-					{
-						_states.Remove(item.Id, out _);
-					}
-					list.RemoveAll(i => i.State.GetType() == stateType);
-				}
+				throw new IdAlreadyExistsException();
 			}
+
+			_index[id] = root.StateRecord;
 
 			return Task.CompletedTask;
 		}
 
-		public Task DeleteWithSubstates<TState>(Guid rootId, Context context)
+		public Task AddRoot(Guid id, object state, IEnumerable<StateEvent> events, Context context)
 		{
-			return DeleteWithSubstates(typeof(TState), rootId, context);
-		}
+			var root = new RootRecord(id, state);
 
-		public Task DeleteWithSubstates(Type stateType, Guid rootId, Context context)
-		{
-			if (_statesByRoot.TryGetValue(rootId, out var list))
+			ApplyEvents(root, events, context);
+
+			if (!_roots.TryAdd(id, root))
 			{
-				lock (list)
-				{
-					foreach (var item in list)
-					{
-						_states.Remove(item.Id, out _);
-					}
-				}
-
-				_statesByRoot.TryRemove(rootId, out _);
+				throw new IdAlreadyExistsException();
 			}
 
-			_states.TryRemove(rootId, out _);
+			_index[id] = root.StateRecord;
+
+			return Task.CompletedTask;
+		}
+
+		public Task DeleteRoot<TState>(Guid rootId, Context context)
+		{
+			return DeleteRoot(typeof(TState), rootId, context);
+		}
+
+		public Task DeleteRoot(Type stateType, Guid rootId, Context context)
+		{
+			if (_index.TryRemove(rootId, out var record))
+			{
+				if (record.Id != record.RootId)
+				{
+					throw new ArgumentException($"{nameof(rootId)} must be root id");
+				}
+
+				if (_roots.TryRemove(record.RootId, out var root))
+				{
+					lock (root)
+					{
+						foreach(var subId in root.Substates.Keys)
+						{
+							_index.TryRemove(subId, out _);
+						}
+					}
+				}
+			}
 
 			return Task.CompletedTask;
 		}
 
 		public Task Apply(Guid rootId, IEnumerable<StateEvent> events, Context context)
 		{
+			if (!_roots.TryGetValue(rootId, out var root))
+			{
+				throw new IdNotFoundException();
+			}
+				
+			lock(root)
+			{
+				ApplyEvents(root, events, context);
+			}
+
+			return Task.CompletedTask;
+		}
+
+		private void ApplyEvents(RootRecord root, IEnumerable<StateEvent> events, Context context)
+		{
 			foreach (var ev in events)
 			{
 				switch (ev.Operation)
 				{
 					case StateEventOperation.Add:
-						Add(ev.EntityId, rootId, ev.ParentId, ev.State, context);
+						Add(root, ev.EntityId, ev.ParentId, ev.State, context);
 						break;
 					case StateEventOperation.Update:
-						Update(ev.EntityId, ev.State, context);
+						Update(root, ev.EntityId, ev.State, context);
 						break;
 					case StateEventOperation.Delete:
-						Delete(ev.State.GetType(), ev.EntityId, context);
+						Delete(root, ev.EntityId, context);
 						break;
 				}
 			}
-
-			return Task.CompletedTask;
 		}
 	}
 }

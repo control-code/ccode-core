@@ -21,7 +21,7 @@ namespace Ccode.AdaptersImpl.UnitTests
 		[Fact]
 		public void AddAndGetState()
 		{
-			_store.Add(_rootId, _rootState, _context).Wait();
+			_store.AddRoot(_rootId, _rootState, _context).Wait();
 
 			var state2 = _store.Get<TestRootEntityState>(_rootId).Result;
 
@@ -31,7 +31,7 @@ namespace Ccode.AdaptersImpl.UnitTests
 		[Fact]
 		public void AddUpdateAndGetState()
 		{
-			_store.Add(_rootId, _rootState, _context).Wait();
+			_store.AddRoot(_rootId, _rootState, _context).Wait();
 
 			var stateNew = _rootState with { Number = 2 };
 			_store.Update(_rootId, stateNew, _context).Wait();
@@ -45,8 +45,8 @@ namespace Ccode.AdaptersImpl.UnitTests
 		[Fact]
 		public void AddAndDeleteState()
 		{
-			_store.Add(_rootId, _rootState, _context).Wait();
-			_store.Delete<TestRootEntityState>(_rootId, _context).Wait();
+			_store.AddRoot(_rootId, _rootState, _context).Wait();
+			_store.DeleteRoot<TestRootEntityState>(_rootId, _context).Wait();
 
 			var state2 = _store.Get<TestRootEntityState>(_rootId).Result;
 
@@ -56,7 +56,7 @@ namespace Ccode.AdaptersImpl.UnitTests
 		[Fact]
 		public void AddAndGetSubstates()
 		{
-			_store.Add(_rootId, _rootState, _context).Wait();
+			_store.AddRoot(_rootId, _rootState, _context).Wait();
 			
 			foreach(var substateItem in _substates)
 			{
@@ -73,14 +73,14 @@ namespace Ccode.AdaptersImpl.UnitTests
 		[Fact]
 		public void AddAndDeleteWithSubstates()
 		{
-			_store.Add(_rootId, _rootState, _context).Wait();
+			_store.AddRoot(_rootId, _rootState, _context).Wait();
 
 			foreach (var substateItem in _substates)
 			{
 				_store.Add(substateItem.Item1, _rootId, substateItem.Item2, _context).Wait();
 			}
 
-			_store.DeleteWithSubstates<TestRootEntityState>(_rootId, _context).Wait();
+			_store.DeleteRoot<TestRootEntityState>(_rootId, _context).Wait();
 
 			var state2 = _store.Get<TestRootEntityState>(_rootId).Result;
 			Assert.Null(state2);

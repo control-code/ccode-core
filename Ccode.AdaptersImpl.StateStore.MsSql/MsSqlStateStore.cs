@@ -74,11 +74,6 @@ namespace Ccode.AdaptersImpl.StateStore.MsSql
 			return new States(rootState, substates.ToArray());
 		}
 
-		public Task Add(Guid id, object state, Context context)
-		{
-			return Add(id, id, null, state, context);
-		}
-
 		public Task Add(Guid id, Guid rootId, object state, Context context)
 		{
 			return Add(id, rootId, null, state, context);
@@ -86,6 +81,11 @@ namespace Ccode.AdaptersImpl.StateStore.MsSql
 
 		public async Task Add(Guid id, Guid rootId, Guid? parentId, object state, Context context)
 		{
+			if (id == rootId)
+			{
+				throw new ArgumentException("Substate id must not be equal root id");
+			}
+
 			var store = GetStoreByType(state.GetType());
 			await using var connection = new SqlConnection(_connectionString);
 			await store.Add(id, rootId, parentId, state, context, connection);
@@ -110,12 +110,24 @@ namespace Ccode.AdaptersImpl.StateStore.MsSql
 			await store.Delete(id, context, connection);
 		}
 
-		public Task DeleteByRoot<TState>(Guid rootId, Context context)
+		public async Task AddRoot(Guid id, object state, Context context)
 		{
-			return DeleteByRoot(typeof(TState), rootId, context);
+			var store = GetStoreByType(state.GetType());
+			await using var connection = new SqlConnection(_connectionString);
+			await store.Add(id, id, null, state, context, connection);
 		}
 
-		public async Task DeleteByRoot(Type stateType, Guid rootId, Context context)
+		public Task AddRoot(Guid id, object state, IEnumerable<StateEvent> events, Context context)
+		{
+			return Apply(id, events.Prepend(new StateEvent(id, null, StateEventOperation.Add, state)), context);
+		}
+
+		public Task DeleteRoot<TState>(Guid rootId, Context context)
+		{
+			return DeleteRoot(typeof(TState), rootId, context);
+		}
+
+		public async Task DeleteRoot(Type stateType, Guid rootId, Context context)
 		{
 			var store = GetStoreByType(stateType);
 			await using var connection = new SqlConnection(_connectionString);
