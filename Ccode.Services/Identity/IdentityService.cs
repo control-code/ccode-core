@@ -20,37 +20,37 @@ namespace Ccode.Services.Identity
 			_userStorageAdapter = userStorageAdapter;
 		}
 
-		public Task RegisterUser(string username, string password)
+		public Task RegisterUser(string userName, string password)
 		{
-			if (string.IsNullOrWhiteSpace(username))
-				throw new ArgumentException("Username cannot be empty", nameof(username));
+			if (string.IsNullOrWhiteSpace(userName))
+				throw new ArgumentException("UserName cannot be empty", nameof(userName));
 
 			if (string.IsNullOrWhiteSpace(password))
 				throw new ArgumentException("Password cannot be empty", nameof(password));
 
-			if (username.Length < 3)
-				throw new ArgumentException("Username must be at least 3 characters long", nameof(username));
+			if (userName.Length < 3)
+				throw new ArgumentException("UserName must be at least 3 characters long", nameof(userName));
 
-			if (_userStorageAdapter.GetUser(username) != null)
-				throw new ArgumentException("Username already exists", nameof(username));
+			if (_userStorageAdapter.GetUser(userName) != null)
+				throw new ArgumentException("UserName already exists", nameof(userName));
 
 			if (password.Length < 8)
 				throw new ArgumentException("Password must be at least 8 characters long", nameof(password));
 
 
-			var user = HashUserPassword(username, password);
+			var user = HashUserPassword(userName, password);
 			return _userStorageAdapter.AddUser(user);
 		}
 
-		public async Task<AuthentificationResult> AuthenticateUser(string username, string password)
+		public async Task<AuthentificationResult> AuthenticateUser(string userName, string password)
 		{
-			if (string.IsNullOrWhiteSpace(username))
-				throw new ArgumentException("Username cannot be empty", nameof(username));
+			if (string.IsNullOrWhiteSpace(userName))
+				throw new ArgumentException("UserName cannot be empty", nameof(userName));
 
 			if (string.IsNullOrWhiteSpace(password))
 				throw new ArgumentException("Password cannot be empty", nameof(password));
 
-			var user = await _userStorageAdapter.GetUser(username);
+			var user = await _userStorageAdapter.GetUser(userName);
 
 			if (user == null)
 				return AuthentificationResult.InvalidUsername;
