@@ -1,5 +1,7 @@
 ﻿using System.Security.Cryptography;
 using Microsoft.AspNetCore.Cryptography.KeyDerivation;
+using Ccode.Contracts.StateQueryAdapter;
+using Ccode.Contracts.StateStoreAdapter;
 
 namespace Ccode.Services.Identity
 {
@@ -9,18 +11,20 @@ namespace Ccode.Services.Identity
 		Task<UserState> GetUser(string username);
 	}
 
-	public record UserState(string Username, byte[] PasswordHash, byte[] Salt);
+	public record UserState(string UserName, byte[] PasswordHash, byte[] Salt);
 
 	public class IdentityService
 	{
-		private readonly IUserStorageAdapter _userStorageAdapter;
+		private readonly IStateStoreAdapter _store;
+		private readonly IStateQueryAdapter _query;
 
-		public IdentityService(IUserStorageAdapter userStorageAdapter)
+		public IdentityService(IStateStoreAdapter store, IStateQueryAdapter query)
 		{
-			_userStorageAdapter = userStorageAdapter;
+			_store = store;
+			_query = query;
 		}
 
-		public Task RegisterUser(string userName, string password)
+		public async Task RegisterUser(string userName, string password)
 		{
 			if (string.IsNullOrWhiteSpace(userName))
 				throw new ArgumentException("UserName cannot be empty", nameof(userName));
@@ -31,15 +35,16 @@ namespace Ccode.Services.Identity
 			if (userName.Length < 3)
 				throw new ArgumentException("UserName must be at least 3 characters long", nameof(userName));
 
-			if (_userStorageAdapter.GetUser(userName) != null)
+			if ((await _query.GetUids<UserState>(nameof(UserState.UserName), userName)).Any())
 				throw new ArgumentException("UserName already exists", nameof(userName));
 
 			if (password.Length < 8)
 				throw new ArgumentException("Password must be at least 8 characters long", nameof(password));
 
-
 			var user = HashUserPassword(userName, password);
-			return _userStorageAdapter.AddUser(user);
+			var uid = Guid.NewGuid();
+			var context = new Domain.Context(Guid.Empty, Guid.NewGuid());
+			await _store.AddRoot(uid, user, context);
 		}
 
 		public async Task<AuthentificationResult> AuthenticateUser(string userName, string password)
@@ -50,12 +55,17 @@ namespace Ccode.Services.Identity
 			if (string.IsNullOrWhiteSpace(password))
 				throw new ArgumentException("Password cannot be empty", nameof(password));
 
-			var user = await _userStorageAdapter.GetUser(userName);
+			var users = await _query.Get<UserState>(nameof(UserState.UserName), userName);
 
-			if (user == null)
+			if (!users.Any())
 				return AuthentificationResult.InvalidUsername;
 
-			if (!VerifyUserPassowrd(user, password))
+			if (users.Count() > 1)
+				throw new InvalidOperationException("Multiple users with the same username");
+
+			var user = users.Single();
+
+			if (!VerifyUserPassowrd(user.State, password))
 				return AuthentificationResult.InvalidPassword;
 
 			return AuthentificationResult.Success;

@@ -5,7 +5,7 @@ namespace Ccode.Contracts.StateStoreAdapter
 
 	public interface IStateStoreAdapter
 	{
-		Task<TState> Get<TState>(Guid uid) where TState : class;
+		Task<TState?> Get<TState>(Guid uid) where TState : class;
 
 		Task AddRoot<TRootState>(Guid uid, TRootState state, Context context) where TRootState: class;
 
