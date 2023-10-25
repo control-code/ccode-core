@@ -1,4 +1,5 @@
 ﻿using System.Collections.Concurrent;
+using Microsoft.Extensions.Options;
 using MongoDB.Bson;
 using MongoDB.Bson.Serialization;
 using MongoDB.Bson.Serialization.Conventions;
@@ -9,14 +10,23 @@ using Ccode.Domain;
 
 namespace Ccode.Infrastructure.MongoStateStoreAdapter
 {
+	public record MongoStateStoreAdapterConfig
+	{
+		public string ConnectionString { get; init; } = string.Empty;
+	}
+
 	public class MongoStateStoreAdapter : IStateStoreAdapter, IStateQueryAdapter
 	{
 		private readonly MongoClient _client;
 		private readonly IMongoDatabase _database;
 		private readonly ConcurrentDictionary<string, IMongoCollection<BsonDocument>> _collections = new();
 
-		public MongoStateStoreAdapter(string connectionString)
+		public MongoStateStoreAdapter(IOptions<MongoStateStoreAdapterConfig> options)
 		{
+			var connectionString = options.Value.ConnectionString;
+			if (string.IsNullOrWhiteSpace(connectionString))
+				throw new ArgumentException("ConnectionString cannot be empty", nameof(connectionString));
+
 			_client = new MongoClient(connectionString);
 			_database = _client.GetDatabase(MongoUrl.Create(connectionString).DatabaseName);
 

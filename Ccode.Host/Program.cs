@@ -1,3 +1,8 @@
+using Microsoft.AspNetCore.Authentication.Cookies;
+using Ccode.Contracts.StateQueryAdapter;
+using Ccode.Contracts.StateStoreAdapter;
+using Ccode.Infrastructure.MongoStateStoreAdapter;
+using Ccode.Services.Identity;
 
 namespace Ccode.Host
 {
@@ -8,11 +13,16 @@ namespace Ccode.Host
 			var builder = WebApplication.CreateBuilder(args);
 
 			// Add services to the container.
-
+			builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme).AddCookie();
 			builder.Services.AddControllers();
 			// Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
 			builder.Services.AddEndpointsApiExplorer();
 			builder.Services.AddSwaggerGen();
+
+			builder.Services.Configure<MongoStateStoreAdapterConfig>(builder.Configuration.GetSection("MongoStateStoreAdapter"));
+			builder.Services.AddSingleton<IStateStoreAdapter, MongoStateStoreAdapter>();
+			builder.Services.AddSingleton<IStateQueryAdapter, MongoStateStoreAdapter>();
+			builder.Services.AddSingleton<IdentityService>();
 
 			var app = builder.Build();
 
@@ -25,8 +35,8 @@ namespace Ccode.Host
 
 			app.UseHttpsRedirection();
 
+			app.UseAuthentication();
 			app.UseAuthorization();
-
 
 			app.MapControllers();
 

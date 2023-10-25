@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Options;
 using Ccode.Domain;
 
 namespace Ccode.Infrastructure.Tests
@@ -9,7 +10,9 @@ namespace Ccode.Infrastructure.Tests
 		[Fact]
 		public void AddRootTest()
 		{
-			var mongoStateStoreAdapter = new MongoStateStoreAdapter.MongoStateStoreAdapter("mongodb://localhost:27017/stateStoreTest");
+			var config = new MongoStateStoreAdapter.MongoStateStoreAdapterConfig { ConnectionString = "mongodb://localhost:27017/stateStoreTest" };
+			var options = Options.Create(config);
+			var mongoStateStoreAdapter = new MongoStateStoreAdapter.MongoStateStoreAdapter(options);
 			
 			var stateA = new State(0, "Test");
 			var context = new Context(Guid.Empty, Guid.NewGuid());

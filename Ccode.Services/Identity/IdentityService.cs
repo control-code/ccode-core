@@ -24,7 +24,7 @@ namespace Ccode.Services.Identity
 			_query = query;
 		}
 
-		public async Task RegisterUser(string userName, string password)
+		public async Task RegisterUser(string userName, string password, Domain.Context context)
 		{
 			if (string.IsNullOrWhiteSpace(userName))
 				throw new ArgumentException("UserName cannot be empty", nameof(userName));
@@ -43,11 +43,10 @@ namespace Ccode.Services.Identity
 
 			var user = HashUserPassword(userName, password);
 			var uid = Guid.NewGuid();
-			var context = new Domain.Context(Guid.Empty, Guid.NewGuid());
 			await _store.AddRoot(uid, user, context);
 		}
 
-		public async Task<AuthentificationResult> AuthenticateUser(string userName, string password)
+		public async Task<AuthentificationResult> AuthenticateUser(string userName, string password, Domain.Context context)
 		{
 			if (string.IsNullOrWhiteSpace(userName))
 				throw new ArgumentException("UserName cannot be empty", nameof(userName));
@@ -55,7 +54,7 @@ namespace Ccode.Services.Identity
 			if (string.IsNullOrWhiteSpace(password))
 				throw new ArgumentException("Password cannot be empty", nameof(password));
 
-			var users = await _query.Get<UserState>(nameof(UserState.UserName), userName);
+			var users = await _query.Get<UserState>("userName", userName);
 
 			if (!users.Any())
 				return AuthentificationResult.InvalidUsername;
@@ -93,7 +92,7 @@ namespace Ccode.Services.Identity
 				prf: KeyDerivationPrf.HMACSHA256,
 				iterationCount: 100000,
 				numBytesRequested: 256 / 8);
-			return hashed == user.PasswordHash;
+			return hashed.SequenceEqual(user.PasswordHash);
 		}
 	}
 }
