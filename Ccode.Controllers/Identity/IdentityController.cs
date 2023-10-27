@@ -1,15 +1,15 @@
-﻿using Ccode.Services.Identity;
+﻿using System.Security.Claims;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
-using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
+using Ccode.Services.Identity;
 
 namespace Ccode.Controllers.Identity
 {
 	[ApiController]
-	[Route("identity")]
+	[Route("api/identity")]
 	public class IdentityController : ControllerBase
 	{
 		public record RegisterUserRequest(string UserName, string Password);
