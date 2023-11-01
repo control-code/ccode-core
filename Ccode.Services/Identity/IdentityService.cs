@@ -11,7 +11,15 @@ namespace Ccode.Services.Identity
 		Task<UserState> GetUser(string username);
 	}
 
-	public record UserState(string UserName, byte[] PasswordHash, byte[] Salt);
+	public enum UserStatus
+	{
+		Undefined = 0,
+		New = 1,
+		Active = 2,
+		Disabled = 3
+	}
+
+	public record UserState(string UserName, byte[] PasswordHash, byte[] Salt, UserStatus Status);
 
 	public class IdentityService
 	{
@@ -70,6 +78,12 @@ namespace Ccode.Services.Identity
 			return AuthentificationResult.Success;
 		}
 
+		public async Task<IEnumerable<EntityState<UserState>>> GetAllUsers(Domain.Context context)
+		{
+			var users = await _query.GetAll<UserState>();
+			return users;
+		}
+
 		private UserState HashUserPassword(string username, string password)
 		{
 			byte[] salt = RandomNumberGenerator.GetBytes(128 / 8);
@@ -81,7 +95,7 @@ namespace Ccode.Services.Identity
 				iterationCount: 100000,
 				numBytesRequested: 256 / 8);
 
-			return new UserState(username, hashed, salt);
+			return new UserState(username, hashed, salt, UserStatus.Active);
 		}
 
 		private bool VerifyUserPassowrd(UserState user, string password)

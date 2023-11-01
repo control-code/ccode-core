@@ -100,5 +100,14 @@ namespace Ccode.Infrastructure.MongoStateStoreAdapter
 
 			return documents.Select(d => new EntityState<TState>(d["_id"].AsGuid, (TState)BsonSerializer.Deserialize(d, stateType)));
 		}
+
+		public async Task<IEnumerable<EntityState<TState>>> GetAll<TState>() where TState : class
+		{
+			var stateType = typeof(TState);
+			var collection = GetCollection(stateType);
+			var documents = await collection.Find(_ => true).ToListAsync();
+
+			return documents.Select(d => new EntityState<TState>(d["_id"].AsGuid, (TState)BsonSerializer.Deserialize(d, stateType)));
+		}
 	}
 }
