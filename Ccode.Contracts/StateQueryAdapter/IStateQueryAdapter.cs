@@ -1,7 +1,5 @@
 ﻿namespace Ccode.Contracts.StateQueryAdapter
 {
-	public record EntityState<TState>(Guid Uid, TState State);
-
 	public interface IStateQueryAdapter
 	{
 		Task<IEnumerable<EntityState<TState>>> GetAll<TState>() where TState : class;

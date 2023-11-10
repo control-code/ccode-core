@@ -13,10 +13,13 @@ namespace Ccode.Infrastructure.MongoStateStoreAdapter
 	public record MongoStateStoreAdapterConfig
 	{
 		public string ConnectionString { get; init; } = string.Empty;
-	}
+	}	
 
 	public class MongoStateStoreAdapter : IStateStoreAdapter, IStateQueryAdapter
 	{
+		private record HistoryKey(Guid Uid, long Version);
+		private record HistoryRecord(HistoryKey Id, BsonDocument State);
+
 		private readonly MongoClient _client;
 		private readonly IMongoDatabase _database;
 		private readonly ConcurrentDictionary<string, IMongoCollection<BsonDocument>> _collections = new();
@@ -38,13 +41,25 @@ namespace Ccode.Infrastructure.MongoStateStoreAdapter
 			ConventionRegistry.Register("StateStore", pack, _ => true);
 		}
 
-		public Task AddRoot<TRootState>(Guid uid, TRootState state, Context context) where TRootState : class
+		public async Task AddRoot<TRootState>(Guid uid, TRootState state, Context context) where TRootState : class
 		{
 			var collection = GetCollection(state.GetType());
+			var historyCollection = GetHistoryCollection(state.GetType());
+
 			var document = state.ToBsonDocument();
 			document.Add("_id", BsonValue.Create(uid));
 
-			return collection.InsertOneAsync(document);
+			var historyRecord = new HistoryRecord(new HistoryKey(uid, 0), state.ToBsonDocument()).ToBsonDocument();
+
+			using (var session = await _client.StartSessionAsync())
+			{
+				session.StartTransaction();
+
+				await collection.InsertOneAsync(session, document);
+				await historyCollection.InsertOneAsync(session, historyRecord);
+
+				await session.CommitTransactionAsync();
+			}
 		}
 
 		public Task DeleteRoot<TRootState>(Guid uid, Context context)
@@ -72,10 +87,23 @@ namespace Ccode.Infrastructure.MongoStateStoreAdapter
 				_database.GetCollection<BsonDocument>(GetCollectionName(type)));
 		}
 
+		private IMongoCollection<BsonDocument> GetHistoryCollection(Type type)
+		{
+			var name = type.Name + "History";
+			return _collections.GetValueOrDefault(name,
+				_database.GetCollection<BsonDocument>(GetHistoryCollectionName(type)));
+		}
+
 		private static string GetCollectionName(Type type)
 		{
 			var name = type.Name;
 			return char.ToLower(name[0]) + name[1..] + "s";
+		}
+
+		private static string GetHistoryCollectionName(Type type)
+		{
+			var name = type.Name;
+			return char.ToLower(name[0]) + name[1..] + "sHistory";
 		}
 
 		public async Task<IEnumerable<Guid>> GetUids<TState>(string fieldName, string fieldValue) where TState : class

@@ -2,7 +2,6 @@
 
 namespace Ccode.Contracts.StateStoreAdapter
 {
-
 	public interface IStateStoreAdapter
 	{
 		Task<TState?> Get<TState>(Guid uid) where TState : class;
