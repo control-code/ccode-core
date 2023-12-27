@@ -27,7 +27,7 @@ namespace Ccode.Controllers.Identity
 		[HttpPost("register")]
 		public async Task<IActionResult> RegisterUser([FromBody] RegisterUserRequest request)
 		{
-			var context = new Domain.Context(Guid.Empty, Guid.NewGuid());
+			var context = new Domain.Context(Guid.Empty, Guid.NewGuid(), -1);
 			try
 			{
 				await _service.RegisterUser(request.UserName, request.Password, context);
@@ -42,7 +42,7 @@ namespace Ccode.Controllers.Identity
 		[HttpPost("authenticate")]
 		public async Task<IActionResult> AuthenticateUser([FromBody] AuthentificationUserRequest request)
 		{
-			var context = new Domain.Context(Guid.Empty, Guid.NewGuid());
+			var context = new Domain.Context(Guid.Empty, Guid.NewGuid(), -1);
 			try
 			{
 				var result = await _service.AuthenticateUser(request.UserName, request.Password, context);

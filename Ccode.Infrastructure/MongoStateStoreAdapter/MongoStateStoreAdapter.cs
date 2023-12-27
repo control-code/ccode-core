@@ -37,7 +37,7 @@ namespace Ccode.Infrastructure.MongoStateStoreAdapter
 		};
 
 		private record HistoryKey(Guid Uid, long Version);
-		private record HistoryRecord(HistoryKey Key, BsonDocument State, long EventNumber);
+		private record HistoryRecord(long Id, HistoryKey Key, BsonDocument State, long EventNumber);
 
 		private readonly MongoClient _client;
 		private readonly IMongoDatabase _database;
@@ -69,7 +69,7 @@ namespace Ccode.Infrastructure.MongoStateStoreAdapter
 			var document = state.ToBsonDocument();
 			document.Add("_id", BsonValue.Create(uid));
 
-			var historyRecord = new HistoryRecord(new HistoryKey(uid, 0), state.ToBsonDocument(), historyCollectionItem.GetNextEventNumber());
+			var historyRecord = new HistoryRecord(historyCollectionItem.GetNextEventNumber(), new HistoryKey(uid, 0), state.ToBsonDocument(), context.EventNumber);
 
 			using (var session = await _client.StartSessionAsync())
 			{
@@ -101,6 +101,22 @@ namespace Ccode.Infrastructure.MongoStateStoreAdapter
 			return (TState)BsonSerializer.Deserialize(doc, stateType);
 		}
 
+		public async Task<long> GetMaxEventNumber<TState>() where TState : class
+		{
+			var type = typeof(TState);
+			var collection = _database.GetCollection<HistoryRecord>(GetHistoryCollectionName(type));
+			var pipeline = new[]
+			{
+				new BsonDocument("$sort", new BsonDocument("EventNumber", -1)),
+				new BsonDocument("$limit", 1)
+			};
+
+			var result = await collection.Aggregate<BsonDocument>(pipeline).FirstOrDefaultAsync();
+			var maxValue = result != null ? result["EventNumber"].AsInt64 : -1L;
+
+			return maxValue;
+		}
+
 		private IMongoCollection<BsonDocument> GetCollection(Type type)
 		{
 			return _collections.GetValueOrDefault(type.Name,
@@ -118,12 +134,12 @@ namespace Ccode.Infrastructure.MongoStateStoreAdapter
 			var collection = _database.GetCollection<HistoryRecord>(GetHistoryCollectionName(type));
 			var pipeline = new[]
 			{
-				new BsonDocument("$sort", new BsonDocument("eventNumber", -1)),
+				new BsonDocument("$sort", new BsonDocument("_id", -1)),
 				new BsonDocument("$limit", 1)
 			};
 
 			var result = collection.Aggregate<BsonDocument>(pipeline).FirstOrDefault();
-			var maxValue = result != null ? result["eventNumber"].AsInt64 : -1L;
+			var maxValue = result != null ? result["_id"].AsInt64 : -1L;
 
 			return new HistoryCollectionItem(collection, maxValue);
 		}
@@ -172,72 +188,105 @@ namespace Ccode.Infrastructure.MongoStateStoreAdapter
 			return documents.Select(d => new EntityState<TState>(d["_id"].AsGuid, (TState)BsonSerializer.Deserialize(d, stateType)));
 		}
 
-		public class Subscription
+		private class EventPoller
 		{
-			public Guid EntityUid { get; private set; }
-
-			private Func<StateStoreEvent, Task> _callbacks;
-
-			public Subscription(Guid entityUid, Func<StateStoreEvent, Task> callback, long lastProcessedEventNumber)
-			{
-				EntityUid = entityUid;
-				_callbacks = callback;
-			}
-
-			public void AddCallback(Func<StateStoreEvent, Task> callback, long lastProcessedEventNumber)
-			{
-				_callbacks += callback;
-			}
-		}
-
-		private class EventPoller<TState>
-		{
+			private Type _stateType;
 			private IMongoCollection<HistoryRecord> _collection;
-			private ConcurrentDictionary<Guid, Subscription> _subscriptions = new ConcurrentDictionary<Guid, Subscription>();
+			private List<Func<StateStoreEvent, Task>> _callbacks = new();
+			private long _lastProcessedEventNumber = -1;
+			private SemaphoreSlim _semaphore = new (1, 1);
 
-			public EventPoller(IMongoCollection<HistoryRecord> collection)
+			public EventPoller(IMongoCollection<HistoryRecord> collection, Type stateType)
 			{
 				_collection = collection;
-			}
-			/*
-			public Task PollEvents()
-			{
-				var records = GetHistoryRecordsAsync()
-
+				_stateType = stateType;
 			}
 
-			public Task Subscribe(long lastProcessedEventNumber, Func<StateStoreEvent, Task> callback)
+			public async Task PollEvents()
 			{
-				_subscriptions.GetOrAdd()
+				await _semaphore.WaitAsync();
+				try
+				{
+					var records = await GetHistoryRecordsAsync(_lastProcessedEventNumber);
+					foreach (var record in records)
+					{
+						var e = new StateStoreEvent(record.Id, StateStoreEventType.RootAdded, _stateType, record.Key.Uid, BsonSerializer.Deserialize(record.State, _stateType));
+						var tasks = _callbacks.Select(c => c.Invoke(e));
+						Task.WaitAll(tasks.ToArray());
+						_lastProcessedEventNumber = record.Id;
+					}
+				}
+				finally { _semaphore.Release(); }
 			}
 
-			private async Task<List<HistoryRecord>> GetHistoryRecordsAsync(
-				Guid uid,
-				int lastProcessedVersionNumber)
+			public async Task Subscribe(long lastProcessedEventNumber, Func<StateStoreEvent, Task> callback)
 			{
-				var filter = Builders<HistoryRecord>.Filter
-					.Where(h =>
-						h.Key.Uid == uid &&
-						h.Key.Version > lastProcessedVersionNumber);
+				await _semaphore.WaitAsync();
+				try
+				{
+					var records = await GetHistoryRecordsAsync(lastProcessedEventNumber, _lastProcessedEventNumber);
+					foreach (var record in records)
+					{
+						var e = new StateStoreEvent(record.Id, StateStoreEventType.RootAdded, _stateType, record.Key.Uid, BsonSerializer.Deserialize(record.State, _stateType));
+						await callback.Invoke(e);
+					}
+					_callbacks.Add(callback);
+				}
+				finally { _semaphore.Release(); }
+			}
+
+			public async Task Unsubscribe(Func<StateStoreEvent, Task> callback)
+			{
+				await _semaphore.WaitAsync();
+				try
+				{
+					_callbacks.Remove(callback);
+				}
+				finally { _semaphore.Release(); }
+			}
+
+			private async Task<List<HistoryRecord>> GetHistoryRecordsAsync(long lastProcessedEventNumber, long toEventNumber = long.MaxValue)
+			{
+				var filter = toEventNumber < long.MaxValue ?
+					Builders<HistoryRecord>.Filter.Where(h => h.Id > lastProcessedEventNumber && h.Id <= toEventNumber):
+					Builders<HistoryRecord>.Filter.Where(h => h.Id > lastProcessedEventNumber);
 
 				return await _collection
 					.Find(filter)
-					.SortByDescending(h => h.Key.Version)
+					.SortBy(h => h.Id)
 					.ToListAsync();
 			}
-			*/
 		}
 
+		private ConcurrentDictionary<Guid, EventPoller> _poolers = new();
 
+		public async Task PollEvents()
+		{
+			foreach(var pooler in _poolers.Values)
+			{
+				await pooler.PollEvents();
+			}
+		}
 
 		public Task Subscribe<TRootState>(long lastProcessedEventNumber, Func<StateStoreEvent, Task> callback)
 		{
-			throw new NotImplementedException();
+			var type = typeof(TRootState);
+			var p = _poolers.GetOrAdd(type.GUID, h =>
+				{
+					var collection = _database.GetCollection<HistoryRecord>(GetHistoryCollectionName(type));
+					return new EventPoller(collection, type);
+				});
+
+			return p.Subscribe(lastProcessedEventNumber, callback);
 		}
 
-		public Task Unsubscribe<TRootState>(Func<StateStoreEvent, Task> callback)
+		public async Task Unsubscribe<TRootState>(Func<StateStoreEvent, Task> callback)
 		{
-			throw new NotImplementedException();
+			var type = typeof(TRootState);
+			if(_poolers.TryGetValue(type.GUID, out var poller))
+			{
+				await poller.Unsubscribe(callback);
+			}
 		}
 	}
 }

@@ -3,6 +3,8 @@ using Ccode.Contracts.StateQueryAdapter;
 using Ccode.Contracts.StateStoreAdapter;
 using Ccode.Infrastructure.MongoStateStoreAdapter;
 using Ccode.Services.Identity;
+using Microsoft.Extensions.DependencyInjection;
+using Ccode.Contracts.StateEventAdapter;
 
 namespace Ccode.Host
 {
@@ -20,8 +22,10 @@ namespace Ccode.Host
 			builder.Services.AddSwaggerGen();
 
 			builder.Services.Configure<MongoStateStoreAdapterConfig>(builder.Configuration.GetSection("MongoStateStoreAdapter"));
-			builder.Services.AddSingleton<IStateStoreAdapter, MongoStateStoreAdapter>();
-			builder.Services.AddSingleton<IStateQueryAdapter, MongoStateStoreAdapter>();
+			builder.Services.AddSingleton<MongoStateStoreAdapter>();
+			builder.Services.AddSingleton<IStateStoreAdapter>(x => x.GetRequiredService<MongoStateStoreAdapter>());
+			builder.Services.AddSingleton<IStateQueryAdapter>(x => x.GetRequiredService<MongoStateStoreAdapter>());
+			builder.Services.AddSingleton<IStateEventAdapter>(x => x.GetRequiredService<MongoStateStoreAdapter>());
 			builder.Services.AddSingleton<IdentityService>();
 
 			var app = builder.Build();

@@ -5,22 +5,6 @@ using Ccode.Contracts.StateStoreAdapter;
 
 namespace Ccode.Services.Identity
 {
-	public interface IUserStorageAdapter
-	{
-		Task<long> AddUser(UserState state);
-		Task<UserState> GetUser(string username);
-	}
-
-	public enum UserStatus
-	{
-		Undefined = 0,
-		New = 1,
-		Active = 2,
-		Disabled = 3
-	}
-
-	public record UserState(string UserName, byte[] PasswordHash, byte[] Salt, UserStatus Status);
-
 	public class IdentityService
 	{
 		private readonly IStateStoreAdapter _store;
@@ -43,7 +27,7 @@ namespace Ccode.Services.Identity
 			if (userName.Length < 3)
 				throw new ArgumentException("UserName must be at least 3 characters long", nameof(userName));
 
-			if ((await _query.GetUids<UserState>(nameof(UserState.UserName), userName)).Any())
+			if ((await _query.GetUids<IdentityState>(nameof(IdentityState.UserName), userName)).Any())
 				throw new ArgumentException("UserName already exists", nameof(userName));
 
 			if (password.Length < 8)
@@ -62,7 +46,7 @@ namespace Ccode.Services.Identity
 			if (string.IsNullOrWhiteSpace(password))
 				throw new ArgumentException("Password cannot be empty", nameof(password));
 
-			var users = await _query.Get<UserState>("userName", userName);
+			var users = await _query.Get<IdentityState>("userName", userName);
 
 			if (!users.Any())
 				return AuthentificationResult.InvalidUsername;
@@ -78,13 +62,13 @@ namespace Ccode.Services.Identity
 			return AuthentificationResult.Success;
 		}
 
-		public async Task<IEnumerable<EntityState<UserState>>> GetAllUsers(Domain.Context context)
+		public async Task<IEnumerable<EntityState<IdentityState>>> GetAllUsers(Domain.Context context)
 		{
-			var users = await _query.GetAll<UserState>();
+			var users = await _query.GetAll<IdentityState>();
 			return users;
 		}
 
-		private UserState HashUserPassword(string username, string password)
+		private IdentityState HashUserPassword(string username, string password)
 		{
 			byte[] salt = RandomNumberGenerator.GetBytes(128 / 8);
 
@@ -95,10 +79,10 @@ namespace Ccode.Services.Identity
 				iterationCount: 100000,
 				numBytesRequested: 256 / 8);
 
-			return new UserState(username, hashed, salt, UserStatus.Active);
+			return new IdentityState(username, hashed, salt, IdentityStatus.Active);
 		}
 
-		private bool VerifyUserPassowrd(UserState user, string password)
+		private bool VerifyUserPassowrd(IdentityState user, string password)
 		{
 			var hashed = KeyDerivation.Pbkdf2(
 				password: password,

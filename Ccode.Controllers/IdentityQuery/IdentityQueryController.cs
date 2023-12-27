@@ -13,7 +13,7 @@ namespace Ccode.Controllers.IdentityQuery
 	[Route("api/identity-query")]
 	public class IdentityQueryController : ControllerBase
 	{
-		public record UserInfo(string UserName, UserStatus Status);
+		public record UserInfo(string UserName, IdentityStatus Status);
 
 		private readonly IdentityService _service;
 
@@ -26,7 +26,7 @@ namespace Ccode.Controllers.IdentityQuery
 		[HttpGet("")]
 		public async Task<IActionResult> GetAll()
 		{
-			var context = new Domain.Context(Guid.Empty, Guid.NewGuid());
+			var context = new Domain.Context(Guid.Empty, Guid.NewGuid(), -1);
 			var users = await _service.GetAllUsers(context);
 
 			if (users == null)
@@ -37,8 +37,8 @@ namespace Ccode.Controllers.IdentityQuery
 			var response = new Response<UserInfo>(
 				new List<ColumnDefinition>
 				{
-					new ColumnDefinition(nameof(UserState.UserName), "User Name"),
-					new ColumnDefinition(nameof(UserState.Status), "Status")
+					new ColumnDefinition(nameof(IdentityState.UserName), "User Name"),
+					new ColumnDefinition(nameof(IdentityState.Status), "Status")
 				},
 				users.Select(u => new EntityState<UserInfo>(u.Uid, new UserInfo(u.State.UserName, u.State.Status)))
 			);

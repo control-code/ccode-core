@@ -12,7 +12,7 @@ namespace Ccode.Contracts.StateEventAdapter
 		RootDeleted = 1
 	}
 
-	public record StateStoreEvent(StateStoreEventType EventType, Type AggregateStateType, Guid Uid);
+	public record StateStoreEvent(long EventNumber, StateStoreEventType EventType, Type AggregateStateType, Guid Uid, object State);
 
 	public interface IStateEventAdapter
 	{

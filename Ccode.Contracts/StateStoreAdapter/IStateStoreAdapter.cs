@@ -10,6 +10,8 @@ namespace Ccode.Contracts.StateStoreAdapter
 
 		Task DeleteRoot<TRootState>(Guid uid, Context context);
 
+		Task<long> GetMaxEventNumber<TState>() where TState : class;
+
 		/*
 		Task<object?> Get(Type stateType, Guid id);
 		Task AddRoot<TRootState>(Guid id, TRootState state, IEnumerable<StateEvent> events, Context context);
