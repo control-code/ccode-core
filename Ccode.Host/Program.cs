@@ -5,6 +5,7 @@ using Ccode.Infrastructure.MongoStateStoreAdapter;
 using Ccode.Services.Identity;
 using Microsoft.Extensions.DependencyInjection;
 using Ccode.Contracts.StateEventAdapter;
+using Ccode.Services.Users;
 
 namespace Ccode.Host
 {
@@ -23,10 +24,13 @@ namespace Ccode.Host
 
 			builder.Services.Configure<MongoStateStoreAdapterConfig>(builder.Configuration.GetSection("MongoStateStoreAdapter"));
 			builder.Services.AddSingleton<MongoStateStoreAdapter>();
+			builder.Services.AddSingleton<IHostedService>(x => x.GetRequiredService<MongoStateStoreAdapter>());
 			builder.Services.AddSingleton<IStateStoreAdapter>(x => x.GetRequiredService<MongoStateStoreAdapter>());
 			builder.Services.AddSingleton<IStateQueryAdapter>(x => x.GetRequiredService<MongoStateStoreAdapter>());
 			builder.Services.AddSingleton<IStateEventAdapter>(x => x.GetRequiredService<MongoStateStoreAdapter>());
 			builder.Services.AddSingleton<IdentityService>();
+			builder.Services.AddSingleton<UsersService>();
+			builder.Services.AddSingleton<IHostedService>(x => x.GetRequiredService<UsersService>());
 
 			var app = builder.Build();
 

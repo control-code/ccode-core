@@ -20,7 +20,7 @@ namespace Ccode.Services.Users
 
 		public async Task StartAsync(CancellationToken cancellationToken)
 		{
-			var eventNumber = await _store.GetMaxEventNumber<IdentityState>();
+			var eventNumber = await _store.GetMaxEventNumber<UserState>();
 			await _event.Subscribe<IdentityState>(eventNumber, ProcessIdentityEvent);
 		}
 

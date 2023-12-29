@@ -8,6 +8,7 @@ using Ccode.Contracts.StateQueryAdapter;
 using Ccode.Contracts.StateStoreAdapter;
 using Ccode.Domain;
 using Ccode.Contracts.StateEventAdapter;
+using Microsoft.Extensions.Hosting;
 
 namespace Ccode.Infrastructure.MongoStateStoreAdapter
 {
@@ -16,7 +17,7 @@ namespace Ccode.Infrastructure.MongoStateStoreAdapter
 		public string ConnectionString { get; init; } = string.Empty;
 	}	
 
-	public class MongoStateStoreAdapter : IStateStoreAdapter, IStateQueryAdapter, IStateEventAdapter
+	public class MongoStateStoreAdapter : IStateStoreAdapter, IStateQueryAdapter, IStateEventAdapter, IHostedService, IDisposable
 	{
 		private class HistoryCollectionItem
 		{
@@ -112,7 +113,7 @@ namespace Ccode.Infrastructure.MongoStateStoreAdapter
 			};
 
 			var result = await collection.Aggregate<BsonDocument>(pipeline).FirstOrDefaultAsync();
-			var maxValue = result != null ? result["EventNumber"].AsInt64 : -1L;
+			var maxValue = result != null ? result["eventNumber"].AsInt64 : -1L;
 
 			return maxValue;
 		}
@@ -287,6 +288,30 @@ namespace Ccode.Infrastructure.MongoStateStoreAdapter
 			{
 				await poller.Unsubscribe(callback);
 			}
+		}
+
+		private Timer? _timer = null;
+
+		public Task StartAsync(CancellationToken cancellationToken)
+		{
+			_timer = new Timer(ProcessEvents, null, TimeSpan.Zero, TimeSpan.FromSeconds(5));
+			return Task.CompletedTask;
+		}
+
+		public Task StopAsync(CancellationToken cancellationToken)
+		{
+			_timer?.Change(Timeout.Infinite, 0);
+			return Task.CompletedTask;
+		}
+
+		public void Dispose()
+		{
+			_timer?.Dispose();
+		}
+
+		private void ProcessEvents(object? state)
+		{
+			PollEvents().Wait();
 		}
 	}
 }
